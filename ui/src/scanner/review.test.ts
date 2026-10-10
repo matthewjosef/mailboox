@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { emptyBook, type Book } from "../library/types";
+import type { Candidate } from "./lookup";
 import {
   acceptAll,
+  addMissed,
   booksToAdd,
   buildSuggestions,
   counts,
@@ -100,5 +102,26 @@ describe("editing", () => {
     let s = buildSuggestions([{ ...results[0], lookup: { ...results[0].lookup, candidates: [frankenstein, other] } }], []);
     s = useCandidate(s, s[0].id, other);
     expect(s[0].book).toMatchObject({ title: "Frankenstein (Penguin Classics)", isbn: "9780141439471" });
+  });
+});
+
+describe("addMissed", () => {
+  const typed = (title: string, best: Candidate | null = null) => ({
+    detection: { title, author: null, confidence: 1 },
+    lookup: { best: best ? { candidate: best, score: 0.5 } : null, candidates: best ? [best] : [] },
+  });
+
+  it("adds a typed-in book straight to the Add pile, even if the catalogue match is weak", () => {
+    const list = addMissed([], typed("A Book Nobody Catalogued"), []);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ decision: "add", book: { title: "A Book Nobody Catalogued" } });
+  });
+
+  it("sets it aside when it's already on the shelf or already in the list", () => {
+    const onShelf = addMissed([], typed("Emma"), [{ ...emptyBook(), title: "Emma" }]);
+    expect(onShelf[0]).toMatchObject({ decision: "skip", reason: "duplicate" });
+    const twice = addMissed(addMissed([], typed("Dune"), []), typed("Dune"), []);
+    expect(twice[1]).toMatchObject({ decision: "skip", reason: "repeat" });
+    expect(new Set(twice.map((s) => s.id)).size).toBe(2);
   });
 });

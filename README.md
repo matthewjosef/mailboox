@@ -16,6 +16,19 @@ MailBoox needs **Moss 0.16 or later**, currently a pre-release: [Moss releases](
    `https://raw.githubusercontent.com/matthewjosef/mailboox/master/curation/lists/curations-0.16.json`
 3. Install **MailBoox** into a group. Each member then fills in **My details** once: a map pin (only a ~1 km area is shared) and an exact address, which is shared encrypted with the other person in a loan.
 
+### Updating
+
+Update MailBoox from Moss's home screen, under **Software updates**; MailBoox also shows a banner when a new version is out.
+Your shelf, loans and details stay as they are.
+
+**Don't add MailBoox to the group again to update it.** Each Tool you add to a group is a separate library with its own
+network, so a second copy starts empty (your books are still in the first one).
+
+If you already have several copies: open each one, use **My details → Export my shelf**, then **Import** the files into
+the copy you want to keep. After that you can remove the extras in the group's Tool settings. Removing a Tool deletes
+its data on your computer, so export first. Loans and requests can't be moved, because they're shared with the other
+person; finish those in the copy where they started.
+
 ## Scanning books
 
 **My shelf → Scan books** reads photos of a whole shelf or of single books with a vision model running locally in
@@ -24,17 +37,27 @@ Google Books as a fallback), and you review the suggestions either as a list wit
 and an **Add all** button, or one card at a time (← skip, → add, E edit, Backspace undo). Anything can be edited,
 including picking a different catalogue match; books already on your shelf are set aside.
 
+Shelf photos are read in several passes: the whole photo, overlapping close-ups, a copy turned sideways for upright
+spines and, when the model sees leaning books, copies turned to straighten them. This takes a few minutes per photo;
+**Use what's read so far** stops early and keeps what's been read. Anything it misses can be typed in with **Add a book it missed**.
+
 Setup (the app walks you through it): install Ollama, allow Moss tools with `OLLAMA_ORIGINS="applet://*"`, and
 `ollama pull qwen2.5vl:7b`.
 
 To check accuracy, put photos in `scanner-eval/photos/` (git-ignored) with a same-named `.txt` listing
-`Title — Author` per line (name shelf photos `shelf*.jpg`), then run `npm run scanner:eval`.
+`Title — Author` per line (any photo with more than one labelled book is read as a shelf), then run `npm run scanner:eval`.
+`STRATEGY=single` compares against a single pass; `LOOKUP=1` also checks the correct readings against Open Library.
 
 ## Releasing
 
 See the steps at the top of [`curation/write-lists.mjs`](curation/write-lists.mjs). In short: `npm run package`, hash the
 `.webhapp` with `npx weave hash-webhapp`, add the version to `curation/releases.json`, run `npm run curation:write`, and upload
 that exact `.webhapp` to a GitHub release. Any zome change needs a new version branch (`0.2.x`, …).
+
+A new version branch is a new network in Moss: people have to add it as a new Tool, which starts empty. So keep zome
+changes rare and batch them, and the release notes for a new branch must say: "Export your shelf from the old MailBoox
+(My details → Export my shelf) and import it into the new one." The backup format (`ui/src/library/backup.ts`) is
+versioned; new versions must keep importing older files.
 
 ## Developing
 

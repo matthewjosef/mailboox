@@ -14,11 +14,13 @@
   import Scan from "./scanner/Scan.svelte";
   import MyDetails from "./screens/MyDetails.svelte";
   import MyLoans from "./screens/MyLoans.svelte";
+  import { checkForUpdate, type AvailableUpdate } from "./library/updates";
 
   let lib = $state<LibraryState | undefined>();
   let connectError = $state<string | undefined>();
   let toasts = $state<(LibraryNotification & { id: number })[]>([]);
   let nextToast = 0;
+  let update = $state<AvailableUpdate | null>(null);
 
   function showToast(notification: LibraryNotification) {
     const id = nextToast++;
@@ -38,6 +40,8 @@
       await Promise.all([s.refresh(), s.loadMyDetails().catch((e) => console.warn("Couldn't load my details", e))]);
       s.startAutoRefresh();
       s.catchUp();
+      // Updating only works this way inside Moss; standalone builds are updated by whoever runs them.
+      if (weave) checkForUpdate(__APP_VERSION__).then((u) => (update = u));
     } catch (e) {
       connectError = friendlyError(e);
     }
@@ -73,6 +77,17 @@
       {/each}
     </div>
   </nav>
+
+  {#if update}
+    <div class="update" role="status">
+      <span>
+        <strong>MailBoox {update.version} is available.</strong> Update it from Moss's home screen, under
+        <em>Software updates</em>. Your shelf and loans stay as they are. Please don't add MailBoox to the group
+        again to update: each new copy starts with an empty library.
+      </span>
+      <button class="link" onclick={() => (update = null)}>Dismiss</button>
+    </div>
+  {/if}
 
   {#if lib.error}
     <div class="alert error" role="alert">
@@ -148,6 +163,16 @@
   main { max-width: 1100px; margin: 0 auto; }
   .centered { display: grid; place-items: center; min-height: 60vh; }
   .version { text-align: center; font-size: 0.75rem; padding: 1.5rem 0 1rem; }
+  .update {
+    margin: 0.75rem 1rem 0;
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    border-left: 4px solid var(--accent);
+    background: var(--surface-2);
+    border-radius: 4px;
+  }
   .alert.error { margin: 0.75rem 1rem 0; display: flex; justify-content: space-between; gap: 1rem; }
   .toasts { position: fixed; right: 1rem; bottom: 1rem; display: grid; gap: 0.5rem; z-index: 10; max-width: min(24rem, calc(100vw - 2rem)); }
   .toast {

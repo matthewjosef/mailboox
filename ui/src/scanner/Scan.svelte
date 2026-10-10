@@ -2,16 +2,19 @@
   import { onMount } from "svelte";
 
   import type { LibraryState } from "../library/state.svelte";
-  import { prepareImage } from "./image";
+  import { loadPhoto, prepareImage, renderPass } from "./image";
   import { findMatches } from "./lookup";
   import { scanPhotos, type PhotoFailure } from "./pipeline";
-  import { checkOllama, recognize, type OllamaStatus } from "./ollama";
+  import { checkOllama, read, recognize, type OllamaStatus } from "./ollama";
+  import { FULL_PASS, readShelf } from "./passes";
   import type { ScanKind } from "./recognition";
   import RecognizerSetup from "./RecognizerSetup.svelte";
   import ReviewCards from "./ReviewCards.svelte";
   import ReviewList from "./ReviewList.svelte";
+  import AddMissed from "./AddMissed.svelte";
   import {
     acceptAll,
+    addMissed,
     booksToAdd,
     buildSuggestions,
     counts,
@@ -37,6 +40,9 @@
   let problem = $state<string | null>(null);
   let failures = $state<PhotoFailure[]>([]);
   let controller: AbortController | undefined;
+  /** "Use what's read so far" for the photo being read. */
+  let enough: AbortController | undefined;
+  let readingShelf = $state(false);
 
   let suggestions = $state<Suggestion[]>([]);
   let view = $state<"list" | "cards">("list");
@@ -88,6 +94,28 @@
   /** Ollama's own errors are long and technical; keep the first line. */
   const shortError = (message: string) => message.split("\n")[0].slice(0, 200);
 
+  async function readPhoto(file: File, signal: AbortSignal | undefined, onPart: (part: string) => void) {
+    if (kind === "single") return recognize(model, (await prepareImage(file, "single")).base64, "single", { signal });
+    const photo = await loadPhoto(file);
+    enough = new AbortController();
+    readingShelf = true;
+    try {
+      const reading = await readShelf({
+        width: photo.width,
+        height: photo.height,
+        render: async (pass) => renderPass(photo, pass),
+        read: (image, pass, s) => read(model, image, pass === FULL_PASS ? "shelf" : "part", { signal: s }),
+        onProgress: (n, of, label) => onPart(of ? `${label} (part ${n} of ${of})` : label),
+        signal,
+        enough: enough.signal,
+      });
+      return reading.detections;
+    } finally {
+      readingShelf = false;
+      photo.close();
+    }
+  }
+
   async function scan() {
     step = "working";
     problem = null;
@@ -97,10 +125,8 @@
     try {
       scanned = await scanPhotos(
         files.map((f) => f.file),
-        kind,
         {
-          prepare: async (file) => (await prepareImage(file, kind)).base64,
-          recognize: (image, signal) => recognize(model, image, kind, { signal }),
+          readPhoto: (file, signal, onPart) => readPhoto(file, signal, onPart),
           lookup: (detection) => findMatches(detection),
           onProgress: (p) => (progress = p),
           pause: () => new Promise((r) => setTimeout(r, 150)), // Be gentle with the free catalogues.
@@ -210,8 +236,17 @@
     <div class="working">
       <progress></progress>
       <p>{progress}</p>
-      <p class="muted small">Shelf photos can take up to a minute on a laptop.</p>
-      <button onclick={() => controller?.abort()}>Cancel</button>
+      <p class="muted small">
+        {kind === "shelf"
+          ? "Shelves are read several times: whole, in close-ups, and turned for sideways or leaning spines. This can take a few minutes per photo on a laptop."
+          : "This usually takes under a minute."}
+      </p>
+      <div class="row">
+        {#if readingShelf}
+          <button onclick={() => enough?.abort()}>Use what's read so far</button>
+        {/if}
+        <button class="link" onclick={() => controller?.abort()}>Cancel</button>
+      </div>
     </div>
   {:else if step === "review"}
     {#if failures.length}
@@ -243,6 +278,12 @@
       />
     {/if}
 
+    <AddMissed
+      onadd={async (detection) => {
+        suggestions = addMissed(suggestions, { detection, lookup: await findMatches(detection) }, lib.myBooks.map((b) => b.book));
+      }}
+    />
+
     {#if lib.error}
       <p class="alert" role="alert">Couldn't add the books: {lib.error}</p>
     {/if}
@@ -250,6 +291,7 @@
       <button onclick={() => ((step = "choose"), (suggestions = []))}>Start over</button>
       <span class="spacer"></span>
       {#if tally.undecided}
+        <span class="look small">{tally.undecided} unsure {tally.undecided === 1 ? "match isn't" : "matches aren't"} included yet</span>
         <button disabled={lib.busy} onclick={() => addToShelf(true)}>Add all {tally.add + tally.undecided}</button>
       {/if}
       <button class="primary" disabled={lib.busy || !tally.add} onclick={() => addToShelf(false)}>

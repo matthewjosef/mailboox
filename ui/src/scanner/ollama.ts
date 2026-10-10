@@ -1,5 +1,6 @@
 // Talks to Ollama on this computer. Photos never leave the device.
-import { buildChatRequest, parseDetections, type Detection, type ScanKind } from "./recognition";
+import type { Layout } from "./passes";
+import { buildChatRequest, parseDetections, parseLayout, type Detection, type PromptKind } from "./recognition";
 
 export const OLLAMA_URL = "http://localhost:11434";
 
@@ -30,12 +31,13 @@ export async function checkOllama(fetchFn: Fetch = defaultFetch): Promise<Ollama
   }
 }
 
-export async function recognize(
+/** Ask the model what books it can read in one image. */
+export async function read(
   model: string,
   imageBase64: string,
-  kind: ScanKind,
+  kind: PromptKind,
   { fetchFn = defaultFetch, signal }: { fetchFn?: Fetch; signal?: AbortSignal } = {},
-): Promise<Detection[]> {
+): Promise<{ detections: Detection[]; layout: Layout | null }> {
   const res = await fetchFn(`${OLLAMA_URL}/api/chat`, {
     method: "POST",
     body: JSON.stringify(buildChatRequest(model, imageBase64, kind)),
@@ -43,5 +45,15 @@ export async function recognize(
   });
   const data = (await res.json()) as { message?: { content?: string }; error?: string };
   if (!res.ok || data.error) throw new Error(data.error ?? `Ollama returned ${res.status}`);
-  return parseDetections(data.message?.content ?? "");
+  const content = data.message?.content ?? "";
+  return { detections: parseDetections(content), layout: parseLayout(content) };
+}
+
+export async function recognize(
+  model: string,
+  imageBase64: string,
+  kind: PromptKind,
+  options: { fetchFn?: Fetch; signal?: AbortSignal } = {},
+): Promise<Detection[]> {
+  return (await read(model, imageBase64, kind, options)).detections;
 }

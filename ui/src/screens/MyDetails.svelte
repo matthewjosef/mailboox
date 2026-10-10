@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
 
   import MapPicker from "../components/MapPicker.svelte";
+  import ShelfBackup from "../components/ShelfBackup.svelte";
   import type { LibraryState } from "../library/state.svelte";
   import type { RoundedPin } from "../library/types";
 
@@ -60,6 +61,8 @@
     {#if saved}<span class="muted">Saved. Requests and loans from now on include these details.</span>{/if}
   </div>
 </form>
+
+<ShelfBackup {lib} />
 
 <style>
   .details { display: grid; gap: 1.5rem; max-width: 40rem; padding: 0 1rem 2rem; }

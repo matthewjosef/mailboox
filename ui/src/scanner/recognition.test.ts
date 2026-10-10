@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChatRequest, parseDetections } from "./recognition";
+import { buildChatRequest, parseDetections, parseLayout } from "./recognition";
 
 describe("buildChatRequest", () => {
   it("asks for structured JSON with the photo attached, deterministically", () => {
@@ -55,5 +55,34 @@ describe("parseDetections", () => {
       { title: "Emma", author: null, confidence: 0.5 },
     ]);
     expect(parseDetections("I can't read this image")).toEqual([]);
+  });
+});
+
+describe("shelf layout", () => {
+  it("asks the first look at a shelf for the layout, and mentions flat and leaning books", () => {
+    const req = buildChatRequest("m", "B", "shelf");
+    expect(req.format.required).toContain("layout");
+    expect(req.messages[0].content).toMatch(/lie flat/);
+    expect(req.messages[0].content).toMatch(/lean/);
+    expect(buildChatRequest("m", "B", "part").format.required).toEqual(["books"]);
+  });
+
+  it("reads the layout, trusting a clear tilt even if 'leaning' wasn't ticked", () => {
+    expect(parseLayout('{"books":[],"layout":{"upright":true,"flat":true,"leaning":false,"leanDegrees":0}}')).toEqual({
+      upright: true,
+      flat: true,
+      leaning: false,
+      leanDegrees: null,
+    });
+    expect(parseLayout('{"books":[],"layout":{"upright":false,"flat":false,"leaning":false,"leanDegrees":-35}}')).toMatchObject({
+      leaning: true,
+      leanDegrees: -35,
+    });
+    expect(parseLayout('{"books":[]}')).toBeNull();
+    // One leaning book is enough, even when the overall layout missed it.
+    expect(
+      parseLayout('{"books":[{"title":"Dune","orientation":"leaning"}],"layout":{"upright":false,"flat":true,"leaning":false,"leanDegrees":0}}'),
+    ).toMatchObject({ flat: true, leaning: true, leanDegrees: null });
+    expect(parseLayout("garbage")).toBeNull();
   });
 });

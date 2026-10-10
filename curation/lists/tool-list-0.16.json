@@ -14,7 +14,7 @@
       "versionBranch": "0.1.x",
       "title": "MailBoox",
       "subtitle": "Lend books to your neighbours",
-      "description": "## Overview\n\nA neighbourhood library. List the books on your shelf, lend them to people nearby through your mailbox, and keep track of every handoff and return.\n\n## Features\n\n- Browse everyone's shelves, search by title or author, and sort by distance\n- Ask to borrow; the owner accepts, then hands it over in person or leaves it in a mailbox with a note\n- The borrower confirms pickup, marks it returned, and the owner confirms or says it hasn't arrived\n- Approximate location (rounded to about 1 km) is visible to the group; exact addresses are shared encrypted, only with the other person in a loan\n- Moss notifications for requests, handoffs and returns, including ones that arrived while you were offline\n- Books are Weave assets: link them from other Tools and find them in group search\n\n## Status\n\nEarly release for Moss 0.16 (Holochain 0.7). Source: https://github.com/matthewjosef/mailboox",
+      "description": "## Overview\n\nA neighbourhood library. List the books on your shelf, lend them to people nearby through your mailbox, and keep track of every handoff and return.\n\n## Features\n\n- Browse everyone's shelves, search by title or author, and sort by distance\n- Ask to borrow; the owner accepts, then hands it over in person or leaves it in a mailbox with a note\n- The borrower confirms pickup, marks it returned, and the owner confirms or says it hasn't arrived\n- Approximate location (rounded to about 1 km) is visible to the group; exact addresses are shared encrypted, only with the other person in a loan\n- Moss notifications for requests, handoffs and returns, including ones that arrived while you were offline\n- Books are Weave assets: link them from other Tools and find them in group search\n- Scan shelves and single books with a vision model running locally in Ollama; photos never leave your computer\n- Export your shelf to a file and import it into another copy of MailBoox\n\n## Updating\n\nUpdate from Moss's home screen under Software updates; your shelf stays. Don't add MailBoox to the group again to update: each copy is a separate library and a new one starts empty.\n\n## Status\n\nEarly release for Moss 0.16 (Holochain 0.7). Source: https://github.com/matthewjosef/mailboox",
       "icon": "https://raw.githubusercontent.com/matthewjosef/mailboox/master/ui/public/icon.png",
       "tags": [
         "books",
@@ -78,6 +78,17 @@
           },
           "changelog": "Scanning full shelves no longer crashes the reader with GGML_ASSERT(a->ne[2] * 4 == b->ne[0]): the request now gives the model a 12k-token context (a shelf photo alone uses about 2,600 of Ollama's default 4,096) and caps the answer length. If one photo still fails, the books from the other photos are kept and the failed photo is named.",
           "releasedAt": 1791645817047
+        },
+        {
+          "version": "0.1.5",
+          "url": "https://github.com/matthewjosef/mailboox/releases/download/v0.1.5/mailboox.webhapp",
+          "hashes": {
+            "happSha256": "69e406efa272c25fe3cb40f34648b93b858833a8c8ee7e5b511258b916457877",
+            "webhappSha256": "ee90691334fc0c7cc033e633c5f4ebcc8dcdfd10ed254e0602917cddd064a970",
+            "uiSha256": "043084b680c9ad7d5cc77db947d4c7471dca4eb7648127987e63fdb5659224d6"
+          },
+          "changelog": "Shelf photos are now read in several passes (the whole photo, overlapping close-ups, a copy turned sideways for upright spines, and turned copies when leaning books are seen), with \"Use what's read so far\" to stop early and \"Add a book it missed\" in the review. New: export your shelf to a file and import it into another copy of MailBoox (My details), which also merges copies made by adding MailBoox to a group more than once. MailBoox now shows a banner when an update is out: update from Moss's home screen under Software updates, and don't add MailBoox again, because each copy is a separate library that starts empty.",
+          "releasedAt": 1791662100598
         }
       ]
     }

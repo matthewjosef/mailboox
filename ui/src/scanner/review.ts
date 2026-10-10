@@ -85,6 +85,15 @@ export function buildSuggestions(results: ScanResult[], myBooks: Book[]): Sugges
   return suggestions;
 }
 
+/** A book the person typed in because the scan missed it: added, unless it's already on the shelf or in the list. */
+export function addMissed(list: Suggestion[], result: ScanResult, myBooks: Book[]): Suggestion[] {
+  const [built] = buildSuggestions([result], [...myBooks, ...list.map((s) => s.book)]);
+  const id = `m${list.length}`;
+  const suggestion: Suggestion =
+    built.reason === "duplicate" ? { ...built, id, reason: list.some((s) => isSameBook(s.book, built.book)) ? "repeat" : "duplicate" } : { ...built, id, decision: "add", previous: "add" };
+  return [...list, suggestion];
+}
+
 const setAside = (s: Suggestion) => s.reason === "duplicate" || s.reason === "repeat";
 
 function change(list: Suggestion[], id: string, patch: (s: Suggestion) => Partial<Suggestion>): Suggestion[] {
