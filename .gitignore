@@ -35,3 +35,14 @@ client/node_modules
 client/angular/dependencies
 client/tasks/config/plugins.yml
 client/angular/templates.coffee
+
+# Holochain / Moss tooling
+target/
+node_modules/
+dist/
+dist.zip
+*.happ
+*.webhapp
+*.dna
+.hc*
+.running
