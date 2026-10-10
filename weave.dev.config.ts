@@ -7,7 +7,7 @@ export default defineConfig({
     {
       name: "Maple Street",
       networkSeed: "mailboox-dev-maple-street",
-      icon: { type: "filesystem", path: "./ui/public/logo.png" },
+      icon: { type: "filesystem", path: "./ui/public/icon.png" },
       creatingAgent: { agentIdx: 1, agentProfile: { nickname: "Alice" } },
       joiningAgents: [{ agentIdx: 2, agentProfile: { nickname: "Bob" } }],
       applets: [
@@ -21,7 +21,7 @@ export default defineConfig({
       subtitle: "Lend books to your neighbours",
       description:
         "A neighbourhood library: list the books on your shelf, lend them out through your mailbox, and keep track of returns.",
-      icon: { type: "filesystem", path: "./ui/public/logo.png" },
+      icon: { type: "filesystem", path: "./ui/public/icon.png" },
       source: { type: "localhost", happPath: "./workdir/mailboox.happ", uiPort: 8888 },
     },
   ],

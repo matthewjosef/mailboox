@@ -1,0 +1,15 @@
+{
+  "0.1.x": [
+    {
+      "version": "0.1.0",
+      "url": "https://github.com/matthewjosef/mailboox/releases/download/v0.1.0/mailboox.webhapp",
+      "hashes": {
+        "happSha256": "69e406efa272c25fe3cb40f34648b93b858833a8c8ee7e5b511258b916457877",
+        "webhappSha256": "4628460381d1662f028f38031def58a888dc85550cba15ffa6c8aef7ae7bb8de",
+        "uiSha256": "5fdaaa4fc654bd08f88a5c9acaabca0a48228cd1222b36596b1d95c551f11ef8"
+      },
+      "changelog": "First release for Moss 0.16 / Holochain 0.7: shared neighbourhood library, borrow requests, mailbox handoff and pickup, returns with confirm or \"not received\" notes, approximate locations with distances, and exact addresses shared encrypted with the other party only.",
+      "releasedAt": 1791613054918
+    }
+  ]
+}

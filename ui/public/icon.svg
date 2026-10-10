@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="MailBoox">
+  <rect width="256" height="256" rx="56" fill="#b5532f"/>
+  <!-- post -->
+  <rect x="118" y="168" width="20" height="56" rx="4" fill="#fbe9d9"/>
+  <!-- mailbox body: rounded-top box -->
+  <path d="M52 112a52 52 0 0 1 52-52h56a44 44 0 0 1 44 44v68H52z" fill="#fffaf3"/>
+  <!-- mailbox opening -->
+  <path d="M60 116a44 44 0 0 1 44-44h4v100H60z" fill="#2b2118"/>
+  <!-- book leaning out of the mailbox -->
+  <g transform="rotate(-18 92 118)">
+    <rect x="74" y="66" width="44" height="64" rx="4" fill="#3b6ea5"/>
+    <rect x="74" y="66" width="8" height="64" rx="2" fill="#2a5180"/>
+    <rect x="88" y="80" width="22" height="4" rx="2" fill="#fffaf3"/>
+    <rect x="88" y="90" width="16" height="4" rx="2" fill="#fffaf3"/>
+  </g>
+  <!-- flag up: you've got a book -->
+  <rect x="170" y="78" width="10" height="56" rx="3" fill="#2b2118"/>
+  <rect x="170" y="78" width="34" height="22" rx="3" fill="#e9b949"/>
+</svg>

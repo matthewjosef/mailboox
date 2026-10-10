@@ -57,7 +57,7 @@
   <main class="centered"><p class="muted">Opening the library…</p></main>
 {:else}
   <nav class="topbar">
-    <span class="brand"><img src="logo.png" alt="" />MailBoox</span>
+    <span class="brand"><img src="icon.svg" alt="" />MailBoox</span>
     <div class="tabs" role="tablist">
       {#each tabs as tab}
         <button

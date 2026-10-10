@@ -7,6 +7,21 @@ Once we really get going, this app should have a OCR scanning tool connected so 
 
 MailBoox is being rebuilt for **Holochain 0.7** as a Tool for **[Moss](https://theweave.social) 0.16**. The original 2018 holochain-proto app is kept in [`legacy/`](legacy/) for reference.
 
+## Install in Moss
+
+MailBoox needs **Moss 0.16 or later**, currently a pre-release: [Moss releases](https://github.com/lightningrodlabs/moss/releases).
+
+1. In Moss, open the **Tool Library** and choose **Manage Curation Lists**.
+2. Add this URL and click **Add List**:
+   `https://raw.githubusercontent.com/matthewjosef/mailboox/master/curation/lists/curations-0.16.json`
+3. Install **MailBoox** into a group. Each member then fills in **My details** once: a map pin (only a ~1 km area is shared) and an exact address, which is shared encrypted with the other person in a loan.
+
+## Releasing
+
+See the steps at the top of [`curation/write-lists.mjs`](curation/write-lists.mjs). In short: `npm run package`, hash the
+`.webhapp` with `npx weave hash-webhapp`, add the version to `curation/releases.json`, run `npm run curation:write`, and upload
+that exact `.webhapp` to a GitHub release. Any zome change needs a new version branch (`0.2.x`, …).
+
 ## Developing
 
 You need [Nix](https://determinate.systems/nix-installer/) with the Holochain binary cache enabled (see the [holonix docs](https://github.com/holochain/holonix)).
@@ -17,6 +32,7 @@ npm install
 npm test                              # builds the DNA, then runs the Sweettest scenarios
 npm start                             # two agents in hc-spin
 npm run dev:browser                   # two agents in ordinary browser tabs (prints a URL per agent)
+npm run applet-dev                    # two agents (Alice and Bob) in Moss dev mode
 npm test -w ui                        # UI unit tests (Vitest)
 ```
 
