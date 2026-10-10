@@ -39,6 +39,21 @@ export function notificationFor(signal: LibrarySignal, { titleOf, nameOf }: Cont
         body: "The owner can't lend it right now.",
         urgency: "low",
       };
+    case "HandoffReady": {
+      const where = signal.method === "BorrowersMailbox" ? "your mailbox" : "the owner's mailbox";
+      const said = signal.note ? `The owner says: “${signal.note}”. ` : `It's in ${where}. `;
+      return {
+        title: signal.method === "BorrowersMailbox" ? `${title} is in your mailbox` : `${title} is ready to pick up`,
+        body: `${said}Tap “Picked it up” once you have it.`,
+        urgency: "high",
+      };
+    }
+    case "HandoverConfirmed":
+      return {
+        title: `${nameOf(signal.by)} has ${title}`,
+        body: "The book changed hands. The loan has started.",
+        urgency: "medium",
+      };
     case "BookReturned":
       return {
         title: `${nameOf(signal.borrower)} returned ${title}`,

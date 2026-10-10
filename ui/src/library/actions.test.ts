@@ -26,11 +26,14 @@ function loan(status: LoanView["status"], borrower = bob): LoanView {
     book_hash: bookHash,
     owner: alice,
     borrower,
+    request: hash(22),
     started_at: 0,
     status,
     last_event: status === "ReturnPending" ? "ReturnNotice" : null,
     last_event_at: null,
     last_notice: status === "ReturnPending" ? hash(21) : null,
+    last_note: null,
+    handoff_method: status === "ReadyForPickup" ? "BorrowersMailbox" : null,
   };
 }
 
@@ -75,6 +78,27 @@ describe("bookActions for the borrower", () => {
   });
 });
 
+describe("handing the book over", () => {
+  it("lets the owner hand it over in person, leave it for pickup, or cancel", () => {
+    const actions = bookActions({ listing: listing(loan("AwaitingHandoff")), me: alice, requests: [] });
+    expect(kinds(actions)).toEqual(["handedOver", "leftInBorrowersMailbox", "leftInMyMailbox", "cancelLoan", "edit"]);
+  });
+
+  it("still lets the owner confirm in person or cancel once it's left for pickup", () => {
+    const actions = bookActions({ listing: listing(loan("ReadyForPickup")), me: alice, requests: [] });
+    expect(kinds(actions)).toEqual(["handedOver", "cancelLoan", "edit"]);
+  });
+
+  it("lets the borrower confirm pickup once it's been left, or say they have it after an in-person handoff", () => {
+    expect(kinds(bookActions({ listing: listing(loan("ReadyForPickup")), me: bob, requests: [] }))).toEqual([
+      "pickedUp",
+    ]);
+    expect(kinds(bookActions({ listing: listing(loan("AwaitingHandoff")), me: bob, requests: [] }))).toEqual([
+      "pickedUp",
+    ]);
+  });
+});
+
 describe("bookActions for the owner", () => {
   it("can edit or delete an available book", () => {
     expect(kinds(bookActions({ listing: listing(), me: alice, requests: [] }))).toEqual(["edit", "delete"]);
@@ -114,5 +138,10 @@ describe("loanStatusFor", () => {
     expect(loanStatusFor(listing(loan("Active")), alice)).toEqual({ kind: "lentOut", borrower: bob });
     expect(loanStatusFor(listing(loan("ReturnPending")), alice)).toEqual({ kind: "returnClaimed", borrower: bob });
     expect(loanStatusFor(listing(loan("Active")), carol)).toEqual({ kind: "onLoan" });
+    expect(loanStatusFor(listing(loan("AwaitingHandoff")), bob)).toEqual({ kind: "waitingForHandoff" });
+    expect(loanStatusFor(listing(loan("ReadyForPickup")), bob)).toEqual({ kind: "readyForMe" });
+    expect(loanStatusFor(listing(loan("AwaitingHandoff")), alice)).toEqual({ kind: "toHandOver", borrower: bob });
+    expect(loanStatusFor(listing(loan("ReadyForPickup")), alice)).toEqual({ kind: "leftFor", borrower: bob });
+    expect(loanStatusFor(listing(loan("AwaitingHandoff")), carol)).toEqual({ kind: "onLoan" });
   });
 });

@@ -1,11 +1,21 @@
 import { encodeHashToBase64, type ActionHash, type AgentPubKey } from "@holochain/client";
+import { SvelteMap } from "svelte/reactivity";
 
 import { sameHash } from "./actions";
 import { catchUp } from "./catchUp";
 import { friendlyError } from "./errors";
+import { distanceKm } from "./geo";
 import type { LibraryClient } from "./libraryClient";
 import { notificationFor, type LibraryNotification } from "./notifications";
-import type { BookListing, LibrarySignal, MyLoans, RequestView } from "./types";
+import type {
+  BookListing,
+  ContactDetails,
+  LibraryProfile,
+  LibrarySignal,
+  MyLoans,
+  RequestView,
+  RoundedPin,
+} from "./types";
 
 export type Route =
   | { name: "library" }
@@ -14,7 +24,8 @@ export type Route =
   | { name: "add" }
   | { name: "edit"; bookHash: ActionHash }
   | { name: "inbox" }
-  | { name: "loans" };
+  | { name: "loans" }
+  | { name: "details"; reason?: string };
 
 export interface Notifier {
   /** `about` is the book the notification concerns; `from` is who caused it. */
@@ -25,6 +36,7 @@ function signalContext(signal: LibrarySignal): { about?: ActionHash; from?: Agen
   if (signal.type === "LocalChange") return {};
   if (signal.type === "BorrowRequested") return { about: signal.book_hash, from: signal.requester };
   if (signal.type === "BookReturned") return { about: signal.book_hash, from: signal.borrower };
+  if (signal.type === "HandoverConfirmed") return { about: signal.book_hash, from: signal.by };
   return { about: signal.book_hash };
 }
 
@@ -38,6 +50,10 @@ export class LibraryState {
   busy = $state(false);
   error = $state<string | null>(null);
   route = $state<Route>({ name: "library" });
+  myProfile = $state<LibraryProfile | null>(null);
+  myContact = $state<ContactDetails | null>(null);
+  /** Other members' rounded pins, keyed by agent (null = no pin set). */
+  pins = new SvelteMap<string, RoundedPin | null>();
   /** Set when running in Moss: put a book in the pocket for linking elsewhere. */
   toPocket: ((bookHash: ActionHash) => Promise<void>) | undefined;
 
@@ -53,13 +69,29 @@ export class LibraryState {
     return this.api.myPubKey;
   }
 
+  /** Both parts of "where I am" are set: a rounded pin for the group, exact details for loans. */
+  get hasLocation(): boolean {
+    return !!this.myProfile?.area && !!this.myContact?.address.trim();
+  }
+
+  /** About how far away another member is, if we both have pins. */
+  distanceTo(agent: AgentPubKey): number | null {
+    const mine = this.myProfile?.area;
+    const theirs = this.pins.get(hashKey(agent));
+    return mine && theirs ? distanceKm(mine, theirs) : null;
+  }
+
   get myBooks(): BookListing[] {
     return this.books.filter((b) => sameHash(b.owner, this.me));
   }
 
   /** Requests and returns waiting on me, for the inbox badge. */
   get inboxCount(): number {
-    return this.incomingRequests.length + this.loans.lent.filter((l) => l.status === "ReturnPending").length;
+    return (
+      this.incomingRequests.length +
+      this.loans.lent.filter((l) => l.status === "ReturnPending" || l.status === "AwaitingHandoff").length +
+      this.loans.borrowed.filter((l) => l.status === "ReadyForPickup").length
+    );
   }
 
   listing(bookHash: ActionHash): BookListing | undefined {
@@ -86,10 +118,36 @@ export class LibraryState {
       this.incomingRequests = incomingRequests;
       this.loans = loans;
       this.error = null;
+      // Pins for everyone we might show a distance to: owners, requesters, loan partners.
+      this.loadPins([
+        ...books.map((b) => b.owner),
+        ...incomingRequests.map((r) => r.requester),
+        ...loans.lent.map((l) => l.borrower),
+        ...loans.borrowed.map((l) => l.owner),
+      ]);
     } catch (e) {
       this.error = friendlyError(e);
     } finally {
       this.loading = false;
+    }
+  }
+
+  async loadMyDetails() {
+    const [profile, contact] = await Promise.all([this.api.getProfile(this.me), this.api.getMyContactDetails()]);
+    this.myProfile = profile;
+    this.myContact = contact;
+  }
+
+  /** Fetch pins for members we haven't looked up yet (pins rarely change; reloads pick up moves). */
+  private loadPins(agents: AgentPubKey[]) {
+    for (const agent of agents) {
+      const key = hashKey(agent);
+      if (this.pins.has(key) || sameHash(agent, this.me)) continue;
+      this.pins.set(key, null);
+      this.api
+        .getProfile(agent)
+        .then((p) => this.pins.set(key, p?.area ?? null))
+        .catch(() => this.pins.delete(key));
     }
   }
 

@@ -12,11 +12,19 @@
   );
 
   const statusText = (loan: LoanView, iAmBorrower: boolean) => {
+    const note = loan.last_note ? ` “${loan.last_note}”` : "";
+    if (loan.status === "AwaitingHandoff") {
+      return iAmBorrower ? "Accepted. Waiting for the owner to hand it over." : "Hand it over, or leave it for pickup.";
+    }
+    if (loan.status === "ReadyForPickup") {
+      const where = loan.handoff_method === "BorrowersMailbox" ? "your mailbox" : "the owner's mailbox";
+      return iAmBorrower ? `Waiting in ${where}.${note}` : `Left for pickup.${note}`;
+    }
     if (loan.status === "ReturnPending") {
       return iAmBorrower ? "You marked it returned. Waiting for the owner to confirm." : "Says it's back. Please confirm.";
     }
     if (loan.last_event === "ReturnDispute") {
-      return iAmBorrower ? "The owner hasn't received it yet." : "You said it hasn't arrived yet.";
+      return iAmBorrower ? `The owner hasn't received it yet.${note}` : `You said it hasn't arrived yet.${note}`;
     }
     return iAmBorrower ? "Enjoy! Drop it back in the owner's mailbox when you're done." : "Out on loan.";
   };
@@ -38,7 +46,15 @@
       </div>
     </div>
     <div class="buttons">
-      {#if iAmBorrower && loan.status === "Active"}
+      {#if iAmBorrower && (loan.status === "AwaitingHandoff" || loan.status === "ReadyForPickup")}
+        <button
+          class:primary={loan.status === "ReadyForPickup"}
+          disabled={lib.busy}
+          onclick={() => lib.run(() => lib.api.confirmHandover(loan.loan_hash))}>Picked it up</button
+        >
+      {:else if !iAmBorrower && (loan.status === "AwaitingHandoff" || loan.status === "ReadyForPickup")}
+        <button class="primary" onclick={() => lib.go({ name: "book", bookHash: loan.book_hash })}>Hand over…</button>
+      {:else if iAmBorrower && loan.status === "Active"}
         <button class="primary" disabled={lib.busy} onclick={() => lib.run(() => lib.api.markReturned(loan.loan_hash))}
           >I've returned it</button
         >

@@ -11,6 +11,7 @@
   import Inbox from "./screens/Inbox.svelte";
   import Library from "./screens/Library.svelte";
   import MyBooks from "./screens/MyBooks.svelte";
+  import MyDetails from "./screens/MyDetails.svelte";
   import MyLoans from "./screens/MyLoans.svelte";
 
   let lib = $state<LibraryState | undefined>();
@@ -33,7 +34,7 @@
       s.toPocket = weave?.toPocket;
       if (weave?.openBook) s.go({ name: "book", bookHash: weave.openBook });
       lib = s;
-      await s.refresh();
+      await Promise.all([s.refresh(), s.loadMyDetails().catch((e) => console.warn("Couldn't load my details", e))]);
       s.startAutoRefresh();
       s.catchUp();
     } catch (e) {
@@ -46,6 +47,7 @@
     { route: { name: "mine" }, label: "My shelf" },
     { route: { name: "loans" }, label: "Loans" },
     { route: { name: "inbox" }, label: "Inbox" },
+    { route: { name: "details" }, label: "My details" },
   ];
 </script>
 
@@ -93,6 +95,8 @@
       <Inbox {lib} />
     {:else if lib.route.name === "loans"}
       <MyLoans {lib} />
+    {:else if lib.route.name === "details"}
+      {#key lib.route}<MyDetails {lib} reason={lib.route.reason} />{/key}
     {/if}
   </main>
 {/if}

@@ -3,6 +3,9 @@ import { SignalType, type ActionHash, type AgentPubKey, type AppClient } from "@
 import type {
   Book,
   BookListing,
+  ContactDetails,
+  HandoffMethod,
+  LibraryProfile,
   LibrarySignal,
   LoanView,
   MyLoans,
@@ -50,9 +53,20 @@ export class LibraryClient {
   confirmReceived = (loan_hash: ActionHash) => this.call<LoanView>("confirm_received", loan_hash);
   disputeReturn = (loan_hash: ActionHash, note: string | null) =>
     this.call<LoanView>("dispute_return", { loan_hash, note });
+  leaveForPickup = (loan_hash: ActionHash, method: HandoffMethod, note: string | null) =>
+    this.call<LoanView>("leave_for_pickup", { loan_hash, method, note });
+  confirmHandover = (loan_hash: ActionHash) => this.call<LoanView>("confirm_handover", loan_hash);
   getLoan = (loan_hash: ActionHash) => this.call<LoanView | null>("get_loan", loan_hash);
   getMyLoans = () => this.call<MyLoans>("get_my_loans");
   getPendingActions = () => this.call<PendingActions>("get_pending_actions");
+
+  // Location and contact details
+  setMyProfile = (profile: LibraryProfile) => this.call<null>("set_my_profile", profile);
+  getProfile = (agent: AgentPubKey) => this.call<LibraryProfile | null>("get_profile", agent);
+  setMyContactDetails = (details: ContactDetails) => this.call<null>("set_my_contact_details", details);
+  getMyContactDetails = () => this.call<ContactDetails | null>("get_my_contact_details");
+  /** The other party's details for a request (owner) or loan (borrower), if shared with me. */
+  getSharedDetails = (context_hash: ActionHash) => this.call<ContactDetails | null>("get_shared_details", context_hash);
 
   /** Subscribe to signals from the library zome. Returns an unsubscribe function. */
   onSignal(listener: (signal: LibrarySignal) => void): () => void {

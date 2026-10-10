@@ -50,5 +50,22 @@ export function catchUp(
     if (notification) items.push({ notification, about: loan.book_hash, from: loan.borrower });
   }
 
+  for (const loan of pending.ready_for_pickup) {
+    const key = `pickup:${encodeHashToBase64(loan.loan_hash)}:${loan.last_event_at}`;
+    stillPending.add(key);
+    if (seen.has(key)) continue;
+    const notification = notificationFor(
+      {
+        type: "HandoffReady",
+        loan_hash: loan.loan_hash,
+        book_hash: loan.book_hash,
+        method: loan.handoff_method ?? "Other",
+        note: loan.last_note,
+      },
+      ctx,
+    );
+    if (notification) items.push({ notification, about: loan.book_hash, from: loan.owner });
+  }
+
   return { items, seen: stillPending };
 }

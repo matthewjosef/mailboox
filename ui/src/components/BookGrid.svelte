@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { loanStatusFor } from "../library/actions";
+  import { loanStatusFor, sameHash } from "../library/actions";
+  import { describeDistance } from "../library/geo";
   import { hashKey, type LibraryState } from "../library/state.svelte";
   import type { BookListing } from "../library/types";
   import BookCover from "./BookCover.svelte";
@@ -18,7 +19,10 @@
         {#if listing.book.authors.length}
           <span class="authors">{listing.book.authors.join(", ")}</span>
         {/if}
-        {#if showOwner}<span class="owner">{lib.shelfOf(listing.owner)}</span>{/if}
+        {#if showOwner}
+          {@const d = sameHash(listing.owner, lib.me) ? null : lib.distanceTo(listing.owner)}
+          <span class="owner">{lib.shelfOf(listing.owner)}{d !== null ? ` · ${describeDistance(d)}` : ""}</span>
+        {/if}
         <StatusPill status={loanStatusFor(listing, lib.me)} nameOf={lib.nameOf} />
       </button>
     </li>

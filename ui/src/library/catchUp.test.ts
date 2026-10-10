@@ -12,13 +12,16 @@ const pendingReturn: LoanView = {
   book_hash: hash(2),
   owner: hash(5),
   borrower: hash(3),
+  request: hash(7),
   started_at: 5,
   status: "ReturnPending",
   last_event: "ReturnNotice",
   last_event_at: 20,
   last_notice: hash(6),
+  last_note: null,
+  handoff_method: null,
 };
-const pending: PendingActions = { incoming_requests: [request], returns_to_confirm: [pendingReturn] };
+const pending: PendingActions = { incoming_requests: [request], returns_to_confirm: [pendingReturn], ready_for_pickup: [] };
 
 describe("catchUp", () => {
   it("notifies about everything the first time", () => {
@@ -29,6 +32,19 @@ describe("catchUp", () => {
     ]);
     expect(items[1].from).toEqual(hash(3));
     expect(seen.size).toBe(2);
+  });
+
+  it("tells a borrower who was offline that a book was left for them", () => {
+    const left: LoanView = {
+      ...pendingReturn,
+      status: "ReadyForPickup",
+      last_event: "HandoffNotice",
+      handoff_method: "OwnersMailbox",
+      last_note: "Under the porch",
+    };
+    const { items } = catchUp({ incoming_requests: [], returns_to_confirm: [], ready_for_pickup: [left] }, new Set(), ctx);
+    expect(items.map((i) => i.notification.title)).toEqual(["Frankenstein is ready to pick up"]);
+    expect(items[0].from).toEqual(hash(5));
   });
 
   it("doesn't repeat what was already notified", () => {
@@ -45,7 +61,7 @@ describe("catchUp", () => {
 
   it("forgets items that are no longer pending", () => {
     const first = catchUp(pending, new Set(), ctx);
-    const { seen } = catchUp({ incoming_requests: [], returns_to_confirm: [] }, first.seen, ctx);
+    const { seen } = catchUp({ incoming_requests: [], returns_to_confirm: [], ready_for_pickup: [] }, first.seen, ctx);
     expect(seen.size).toBe(0);
   });
 });

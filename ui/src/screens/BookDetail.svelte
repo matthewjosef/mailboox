@@ -2,38 +2,61 @@
   import type { ActionHash } from "@holochain/client";
 
   import BookCover from "../components/BookCover.svelte";
+  import ContactCard from "../components/ContactCard.svelte";
   import StatusPill from "../components/StatusPill.svelte";
-  import { bookActions, loanStatusFor, type BookAction } from "../library/actions";
+  import { bookActions, loanStatusFor, sameHash, type BookAction } from "../library/actions";
+  import { describeDistance } from "../library/geo";
   import type { LibraryState } from "../library/state.svelte";
+  import type { HandoffMethod } from "../library/types";
 
   let { lib, bookHash }: { lib: LibraryState; bookHash: ActionHash } = $props();
 
   let listing = $derived(lib.listing(bookHash));
-  let actions = $derived(
-    listing ? bookActions({ listing, me: lib.me, requests: lib.requestsFor(bookHash) }) : [],
-  );
-  let ownerActions = $derived(actions.filter((a) => a.kind !== "accept" && a.kind !== "decline"));
+  let actions = $derived(listing ? bookActions({ listing, me: lib.me, requests: lib.requestsFor(bookHash) }) : []);
+  let mainActions = $derived(actions.filter((a) => a.kind !== "accept" && a.kind !== "decline"));
   let requestActions = $derived(actions.filter((a) => a.kind === "accept"));
+  let isOwner = $derived(!!listing && sameHash(listing.owner, lib.me));
+  let distance = $derived(listing && !isOwner ? lib.distanceTo(listing.owner) : null);
 
-  // Inline confirmations instead of browser dialogs (which don't work well inside Moss).
+  // Inline forms instead of browser dialogs (which don't work well inside Moss).
   let confirmingDelete = $state(false);
   let disputing = $state(false);
-  let disputeNote = $state("");
+  let leaving = $state<HandoffMethod | null>(null);
+  let note = $state("");
+
+  /** Asking and lending share your private details, so make sure they're set first. */
+  function needsDetails(why: string): boolean {
+    if (lib.hasLocation) return false;
+    lib.go({ name: "details", reason: why });
+    return true;
+  }
 
   async function perform(action: BookAction) {
     switch (action.kind) {
       case "request":
+        if (needsDetails("Add your location before asking to borrow, so the owner knows where you are.")) return;
         return lib.run(() => lib.api.requestBorrow(bookHash));
       case "cancelRequest":
         return lib.run(() => lib.api.cancelRequest(action.request.request_hash));
       case "accept":
+        if (needsDetails("Add your location before lending, so the borrower knows where to pick it up.")) return;
         return lib.run(() => lib.api.acceptRequest(action.request.request_hash));
       case "decline":
         return lib.run(() => lib.api.declineRequest(action.request.request_hash));
-      case "markReturned":
-        return lib.run(() => lib.api.markReturned(action.loan.loan_hash));
+      case "handedOver":
+      case "pickedUp":
+        return lib.run(() => lib.api.confirmHandover(action.loan.loan_hash));
+      case "leftInBorrowersMailbox":
+        leaving = "BorrowersMailbox";
+        return;
+      case "leftInMyMailbox":
+        leaving = "OwnersMailbox";
+        return;
+      case "cancelLoan":
       case "markReceived":
         return lib.run(() => lib.api.confirmReceived(action.loan.loan_hash));
+      case "markReturned":
+        return lib.run(() => lib.api.markReturned(action.loan.loan_hash));
       case "notReceived":
         disputing = true;
         return;
@@ -45,11 +68,18 @@
     }
   }
 
-  async function submitDispute(loanHash: ActionHash) {
-    const note = disputeNote.trim() || null;
-    await lib.run(() => lib.api.disputeReturn(loanHash, note));
+  async function submitNote(e: SubmitEvent, loanHash: ActionHash) {
+    e.preventDefault();
+    const text = note.trim() || null;
+    if (leaving) {
+      const method = leaving;
+      await lib.run(() => lib.api.leaveForPickup(loanHash, method, text));
+    } else {
+      await lib.run(() => lib.api.disputeReturn(loanHash, text));
+    }
+    leaving = null;
     disputing = false;
-    disputeNote = "";
+    note = "";
   }
 
   async function deleteBook() {
@@ -62,11 +92,22 @@
     cancelRequest: "Withdraw my request",
     accept: "Lend it",
     decline: "Decline",
+    handedOver: "Handed over in person",
+    leftInBorrowersMailbox: "Left it in their mailbox",
+    leftInMyMailbox: "Left it in my mailbox",
+    cancelLoan: "Cancel loan",
+    pickedUp: "Picked it up",
     markReturned: "I've returned it",
     markReceived: "I got it back",
     notReceived: "Not received yet",
     edit: "Edit",
     delete: "Delete",
+  };
+  const PRIMARY = new Set<BookAction["kind"]>(["request", "markReturned", "markReceived", "pickedUp", "handedOver"]);
+  const WHERE: Record<HandoffMethod, string> = {
+    BorrowersMailbox: "in your mailbox",
+    OwnersMailbox: "in the owner's mailbox",
+    Other: "for you to pick up",
   };
 </script>
 
@@ -76,26 +117,46 @@
   <p class="muted">{lib.loading ? "Loading…" : "This book isn't on any shelf anymore."}</p>
 {:else}
   {@const loan = listing.open_loan}
+  {@const iBorrow = !!loan && sameHash(loan.borrower, lib.me)}
   <article class="detail">
     <BookCover book={listing.book} size="lg" />
     <div class="info">
       <h1>{listing.book.title}</h1>
       {#if listing.book.authors.length}<p class="authors">{listing.book.authors.join(", ")}</p>{/if}
-      <p class="muted">{lib.shelfOf(listing.owner)}{listing.book.genre ? ` · ${listing.book.genre}` : ""}</p>
+      <p class="muted">
+        {lib.shelfOf(listing.owner)}{distance !== null ? ` · ${describeDistance(distance)}` : ""}{listing.book.genre
+          ? ` · ${listing.book.genre}`
+          : ""}
+      </p>
       <StatusPill status={loanStatusFor(listing, lib.me)} nameOf={lib.nameOf} />
       {#if listing.book.blurb}<p class="blurb">{listing.book.blurb}</p>{/if}
       {#if listing.book.isbn}<p class="muted small">ISBN {listing.book.isbn}</p>{/if}
 
-      {#if loan?.status === "ReturnPending" && loan.last_event === "ReturnNotice"}
+      {#if loan && iBorrow && loan.status === "AwaitingHandoff"}
+        <p class="callout">{lib.nameOf(loan.owner)} said yes. They'll hand it over or leave it for you to pick up.</p>
+      {:else if loan && iBorrow && loan.status === "ReadyForPickup"}
+        <p class="callout">
+          It's {WHERE[loan.handoff_method ?? "Other"]}.{loan.last_note ? ` ${lib.nameOf(loan.owner)} says: “${loan.last_note}”` : ""}
+        </p>
+      {:else if loan && iBorrow && loan.status === "Active" && loan.last_event === "ReturnDispute"}
+        <p class="callout">
+          {lib.nameOf(loan.owner)} hasn't received it yet{loan.last_note ? `: “${loan.last_note}”` : "."}
+        </p>
+      {:else if loan && isOwner && loan.status === "ReturnPending"}
         <p class="callout">
           {lib.nameOf(loan.borrower)} says they've put it back in your mailbox. Have a look, then confirm.
+        </p>
+      {:else if loan && isOwner && loan.status === "ReadyForPickup"}
+        <p class="callout">
+          You left it {loan.handoff_method === "BorrowersMailbox" ? "in their mailbox" : "in your mailbox"}. Waiting for
+          {lib.nameOf(loan.borrower)} to pick it up.
         </p>
       {/if}
 
       <div class="actions">
-        {#each ownerActions as action (action.kind)}
+        {#each mainActions as action (action.kind)}
           <button
-            class:primary={["request", "markReturned", "markReceived"].includes(action.kind)}
+            class:primary={PRIMARY.has(action.kind)}
             class:danger={action.kind === "delete"}
             disabled={lib.busy || !!action.disabledReason}
             title={action.disabledReason}
@@ -111,13 +172,21 @@
         {/if}
       </div>
 
-      {#if disputing && loan}
-        <form class="inline-form" onsubmit={(e) => { e.preventDefault(); submitDispute(loan.loan_hash); }}>
-          <label for="dispute-note">Tell {lib.nameOf(loan.borrower)} what's up (optional)</label>
-          <textarea id="dispute-note" rows="2" bind:value={disputeNote} placeholder="It's not in my mailbox yet"></textarea>
+      {#if (leaving || disputing) && loan}
+        {@const other = isOwner ? lib.nameOf(loan.borrower) : lib.nameOf(loan.owner)}
+        <form class="inline-form" onsubmit={(e) => submitNote(e, loan.loan_hash)}>
+          <label for="note">
+            {leaving ? `Anything ${other} should know? (optional)` : `Tell ${other} what's up (optional)`}
+          </label>
+          <textarea
+            id="note"
+            rows="2"
+            bind:value={note}
+            placeholder={leaving ? "In the blue box by the gate" : "It's not in my mailbox yet"}
+          ></textarea>
           <div class="row">
-            <button class="primary" disabled={lib.busy}>Send</button>
-            <button type="button" onclick={() => (disputing = false)}>Cancel</button>
+            <button class="primary" disabled={lib.busy}>{leaving ? `Tell ${other}` : "Send"}</button>
+            <button type="button" onclick={() => ((leaving = null), (disputing = false))}>Cancel</button>
           </div>
         </form>
       {/if}
@@ -132,13 +201,26 @@
         </div>
       {/if}
 
+      {#if loan && loan.status !== "Closed"}
+        {#if isOwner}
+          <ContactCard {lib} contextHash={loan.request} who={lib.nameOf(loan.borrower)} />
+        {:else if iBorrow}
+          <ContactCard {lib} contextHash={loan.loan_hash} who={lib.nameOf(loan.owner)} />
+        {/if}
+      {/if}
+
       {#if requestActions.length}
         <h2>Requests</h2>
         <ul class="requests">
           {#each requestActions as action}
             {#if action.kind === "accept"}
+              {@const d = lib.distanceTo(action.request.requester)}
               <li>
-                <span>{lib.nameOf(action.request.requester)} would like to borrow it</span>
+                <div>
+                  <span>{lib.nameOf(action.request.requester)} would like to borrow it</span>
+                  {#if d !== null}<span class="muted"> · {describeDistance(d)}</span>{/if}
+                  <ContactCard {lib} contextHash={action.request.request_hash} who={lib.nameOf(action.request.requester)} />
+                </div>
                 <span class="row">
                   <button
                     class="primary"
@@ -190,7 +272,7 @@
   .requests li {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 1rem;
     flex-wrap: wrap;
     padding: 0.5rem 0;

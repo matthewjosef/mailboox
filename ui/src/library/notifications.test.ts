@@ -38,6 +38,29 @@ describe("notificationFor", () => {
     );
   });
 
+  it("tells the borrower where the book was left, with the owner's note", () => {
+    const signal: LibrarySignal = {
+      type: "HandoffReady",
+      loan_hash: hash(1),
+      book_hash: hash(2),
+      method: "BorrowersMailbox",
+      note: "Blue box by the gate",
+    };
+    expect(notificationFor(signal, ctx)).toEqual({
+      title: "Frankenstein is in your mailbox",
+      body: "The owner says: “Blue box by the gate”. Tap “Picked it up” once you have it.",
+      urgency: "high",
+    });
+    const atOwners = notificationFor({ ...signal, method: "OwnersMailbox", note: null }, ctx);
+    expect(atOwners?.title).toBe("Frankenstein is ready to pick up");
+    expect(atOwners?.body).toBe("It's in the owner's mailbox. Tap “Picked it up” once you have it.");
+  });
+
+  it("tells the other party when the book changed hands", () => {
+    const signal: LibrarySignal = { type: "HandoverConfirmed", loan_hash: hash(1), book_hash: hash(2), by: hash(3) };
+    expect(notificationFor(signal, ctx)?.title).toBe("Bob has Frankenstein");
+  });
+
   it("ignores local refresh signals", () => {
     expect(notificationFor({ type: "LocalChange" }, ctx)).toBeNull();
   });

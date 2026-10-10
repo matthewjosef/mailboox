@@ -11,6 +11,11 @@ export type BookAction =
   | { kind: "cancelRequest"; request: RequestView; disabledReason?: string }
   | { kind: "accept"; request: RequestView; disabledReason?: string }
   | { kind: "decline"; request: RequestView; disabledReason?: string }
+  | { kind: "handedOver"; loan: LoanView; disabledReason?: string }
+  | { kind: "leftInBorrowersMailbox"; loan: LoanView; disabledReason?: string }
+  | { kind: "leftInMyMailbox"; loan: LoanView; disabledReason?: string }
+  | { kind: "cancelLoan"; loan: LoanView; disabledReason?: string }
+  | { kind: "pickedUp"; loan: LoanView; disabledReason?: string }
   | { kind: "markReturned"; loan: LoanView; disabledReason?: string }
   | { kind: "markReceived"; loan: LoanView; disabledReason?: string }
   | { kind: "notReceived"; loan: LoanView; disabledReason?: string }
@@ -31,6 +36,7 @@ export function bookActions({ listing, me, requests }: BookActionsInput): BookAc
 
   if (!isOwner) {
     if (loan && sameHash(loan.borrower, me)) {
+      if (loan.status === "AwaitingHandoff" || loan.status === "ReadyForPickup") return [{ kind: "pickedUp", loan }];
       return loan.status === "Active" ? [{ kind: "markReturned", loan }] : [];
     }
     const mine = requests.find((r) => sameHash(r.requester, me));
@@ -43,7 +49,15 @@ export function bookActions({ listing, me, requests }: BookActionsInput): BookAc
     actions.push({ kind: "accept", request, disabledReason: onLoanReason });
     actions.push({ kind: "decline", request });
   }
-  if (loan) {
+  if (loan?.status === "AwaitingHandoff") {
+    actions.push({ kind: "handedOver", loan });
+    actions.push({ kind: "leftInBorrowersMailbox", loan });
+    actions.push({ kind: "leftInMyMailbox", loan });
+    actions.push({ kind: "cancelLoan", loan });
+  } else if (loan?.status === "ReadyForPickup") {
+    actions.push({ kind: "handedOver", loan });
+    actions.push({ kind: "cancelLoan", loan });
+  } else if (loan) {
     actions.push({ kind: "markReceived", loan });
     if (loan.status === "ReturnPending") actions.push({ kind: "notReceived", loan });
   }
@@ -56,6 +70,10 @@ export type LoanStatusView =
   | { kind: "available" }
   | { kind: "onLoan" }
   | { kind: "borrowedByMe" }
+  | { kind: "waitingForHandoff" }
+  | { kind: "readyForMe" }
+  | { kind: "toHandOver"; borrower: AgentPubKey }
+  | { kind: "leftFor"; borrower: AgentPubKey }
   | { kind: "iMarkedReturned" }
   | { kind: "lentOut"; borrower: AgentPubKey }
   | { kind: "returnClaimed"; borrower: AgentPubKey };
@@ -65,8 +83,20 @@ export function loanStatusFor(listing: BookListing, me: AgentPubKey): LoanStatus
   const loan = listing.open_loan;
   if (!loan) return { kind: "available" };
   const pending = loan.status === "ReturnPending";
-  if (sameHash(loan.borrower, me)) return pending ? { kind: "iMarkedReturned" } : { kind: "borrowedByMe" };
-  if (sameHash(listing.owner, me)) {
+  const iBorrow = sameHash(loan.borrower, me);
+  const iOwn = sameHash(listing.owner, me);
+  if (loan.status === "AwaitingHandoff") {
+    if (iBorrow) return { kind: "waitingForHandoff" };
+    if (iOwn) return { kind: "toHandOver", borrower: loan.borrower };
+    return { kind: "onLoan" };
+  }
+  if (loan.status === "ReadyForPickup") {
+    if (iBorrow) return { kind: "readyForMe" };
+    if (iOwn) return { kind: "leftFor", borrower: loan.borrower };
+    return { kind: "onLoan" };
+  }
+  if (iBorrow) return pending ? { kind: "iMarkedReturned" } : { kind: "borrowedByMe" };
+  if (iOwn) {
     return pending ? { kind: "returnClaimed", borrower: loan.borrower } : { kind: "lentOut", borrower: loan.borrower };
   }
   return { kind: "onLoan" };

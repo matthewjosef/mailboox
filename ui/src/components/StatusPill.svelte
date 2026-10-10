@@ -10,6 +10,14 @@
   <span class="pill available">Available</span>
 {:else if status.kind === "onLoan"}
   <span class="pill out">On loan</span>
+{:else if status.kind === "waitingForHandoff"}
+  <span class="pill pending">Yours soon: waiting for handoff</span>
+{:else if status.kind === "readyForMe"}
+  <span class="pill attention">Ready for you to pick up</span>
+{:else if status.kind === "toHandOver"}
+  <span class="pill attention">Hand over to {nameOf(status.borrower)}</span>
+{:else if status.kind === "leftFor"}
+  <span class="pill pending">Left for {nameOf(status.borrower)}</span>
 {:else if status.kind === "borrowedByMe"}
   <span class="pill mine">You're borrowing this</span>
 {:else if status.kind === "iMarkedReturned"}

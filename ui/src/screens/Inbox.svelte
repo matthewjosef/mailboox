@@ -7,6 +7,8 @@
   let { lib }: { lib: LibraryState } = $props();
 
   let returns = $derived(lib.loans.lent.filter((l) => l.status === "ReturnPending"));
+  let toHandOver = $derived(lib.loans.lent.filter((l) => l.status === "AwaitingHandoff"));
+  let toPickUp = $derived(lib.loans.borrowed.filter((l) => l.status === "ReadyForPickup"));
   let disputingLoan = $state<string | null>(null);
   let note = $state("");
 
@@ -19,7 +21,53 @@
 
 <header class="screen-head"><h1>Inbox</h1></header>
 
-{#if returns.length === 0 && lib.incomingRequests.length === 0 && lib.myRequests.length === 0}
+{#if toPickUp.length}
+  <section>
+    <h2>Ready for you to pick up</h2>
+    <ul class="items">
+      {#each toPickUp as loan (hashKey(loan.loan_hash))}
+        {@const listing = lib.listing(loan.book_hash)}
+        <li>
+          {#if listing}<BookCover book={listing.book} size="sm" />{/if}
+          <div class="text">
+            <button class="link" onclick={() => lib.go({ name: "book", bookHash: loan.book_hash })}
+              >{listing?.book.title ?? "A book"}</button
+            >
+            is {loan.handoff_method === "BorrowersMailbox" ? "in your mailbox" : `in ${lib.nameOf(loan.owner)}'s mailbox`}.
+            {#if loan.last_note}<span class="muted">“{loan.last_note}”</span>{/if}
+          </div>
+          <div class="buttons">
+            <button class="primary" disabled={lib.busy} onclick={() => lib.run(() => lib.api.confirmHandover(loan.loan_hash))}
+              >Picked it up</button
+            >
+          </div>
+        </li>
+      {/each}
+    </ul>
+  </section>
+{/if}
+
+{#if toHandOver.length}
+  <section>
+    <h2>To hand over</h2>
+    <ul class="items">
+      {#each toHandOver as loan (hashKey(loan.loan_hash))}
+        {@const listing = lib.listing(loan.book_hash)}
+        <li>
+          {#if listing}<BookCover book={listing.book} size="sm" />{/if}
+          <div class="text">
+            You agreed to lend <strong>{listing?.book.title ?? "a book"}</strong> to {lib.nameOf(loan.borrower)}.
+          </div>
+          <div class="buttons">
+            <button class="primary" onclick={() => lib.go({ name: "book", bookHash: loan.book_hash })}>Hand over…</button>
+          </div>
+        </li>
+      {/each}
+    </ul>
+  </section>
+{/if}
+
+{#if returns.length === 0 && toPickUp.length === 0 && toHandOver.length === 0 && lib.incomingRequests.length === 0 && lib.myRequests.length === 0}
   <p class="muted pad">Nothing needs your attention.</p>
 {/if}
 
