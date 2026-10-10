@@ -1,11 +1,16 @@
 use hdk::prelude::*;
 use library_integrity::*;
 
+use crate::profile::seal_my_details_for;
 use crate::requests::{get_incoming_requests, remove_request, RequestView};
 use crate::utils::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum LoanStatus {
+    /// Accepted; the owner hasn't handed it over or left it for pickup yet.
+    AwaitingHandoff,
+    /// The owner left it somewhere; waiting for the borrower to pick it up.
+    ReadyForPickup,
     Active,
     ReturnPending,
     Closed,
@@ -13,6 +18,8 @@ pub enum LoanStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum LoanEventKind {
+    HandoffNotice,
+    PickupConfirmation,
     ReturnNotice,
     ReturnDispute,
     ReturnReceipt,
@@ -24,12 +31,17 @@ pub struct LoanView {
     pub book_hash: ActionHash,
     pub owner: AgentPubKey,
     pub borrower: AgentPubKey,
+    /// The accepted request; the borrower's contact details are attached to it.
+    pub request: ActionHash,
     pub started_at: Timestamp,
     pub status: LoanStatus,
     pub last_event: Option<LoanEventKind>,
     pub last_event_at: Option<Timestamp>,
     /// The most recent return notice, needed to dispute it.
     pub last_notice: Option<ActionHash>,
+    /// Note from the latest handoff notice or dispute, e.g. where the book was left.
+    pub last_note: Option<String>,
+    pub handoff_method: Option<HandoffMethod>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -43,6 +55,15 @@ pub struct MyLoans {
 pub struct PendingActions {
     pub incoming_requests: Vec<RequestView>,
     pub returns_to_confirm: Vec<LoanView>,
+    /// Books left for me to pick up.
+    pub ready_for_pickup: Vec<LoanView>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LeaveForPickupInput {
+    pub loan_hash: ActionHash,
+    pub method: HandoffMethod,
+    pub note: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,6 +75,8 @@ pub struct DisputeReturnInput {
 impl LoanView {
     fn apply(&mut self, kind: LoanEventKind, at: Timestamp, event_hash: ActionHash) {
         self.status = match kind {
+            LoanEventKind::HandoffNotice => LoanStatus::ReadyForPickup,
+            LoanEventKind::PickupConfirmation => LoanStatus::Active,
             LoanEventKind::ReturnNotice => {
                 self.last_notice = Some(event_hash);
                 LoanStatus::ReturnPending
@@ -71,6 +94,8 @@ fn event_kind(tag: &LinkTag) -> Option<LoanEventKind> {
         NOTICE_TAG => Some(LoanEventKind::ReturnNotice),
         DISPUTE_TAG => Some(LoanEventKind::ReturnDispute),
         RECEIPT_TAG => Some(LoanEventKind::ReturnReceipt),
+        HANDOFF_TAG => Some(LoanEventKind::HandoffNotice),
+        PICKUP_TAG => Some(LoanEventKind::PickupConfirmation),
         _ => None,
     }
 }
@@ -88,17 +113,36 @@ pub fn get_loan(loan_hash: ActionHash) -> ExternResult<Option<LoanView>> {
         book_hash: loan.book,
         owner: record.action().author().clone(),
         borrower: loan.borrower,
+        request: loan.request,
         started_at: record.action().timestamp(),
-        status: LoanStatus::Active,
+        status: LoanStatus::AwaitingHandoff,
         last_event: None,
         last_event_at: None,
         last_notice: None,
+        last_note: None,
+        handoff_method: None,
     };
     let mut events = links(loan_hash, LinkTypes::LoanToEvents)?;
     events.sort_by_key(|link| link.timestamp);
+    let mut latest_with_note = None;
     for link in events {
         if let Some(kind) = event_kind(&link.tag) {
-            view.apply(kind, link.timestamp, link_target(&link)?);
+            let event_hash = link_target(&link)?;
+            if matches!(kind, LoanEventKind::HandoffNotice | LoanEventKind::ReturnDispute) {
+                latest_with_note = Some(event_hash.clone());
+            }
+            view.apply(kind, link.timestamp, event_hash);
+        }
+    }
+    // Only the latest note-carrying event matters, so fetch just that one.
+    if let Some(event_hash) = latest_with_note {
+        if let Some(record) = get(event_hash, GetOptions::network())? {
+            if let Ok(handoff) = decode_entry::<HandoffNotice>(&record) {
+                view.last_note = handoff.note;
+                view.handoff_method = Some(handoff.method);
+            } else if let Ok(dispute) = decode_entry::<ReturnDispute>(&record) {
+                view.last_note = dispute.note;
+            }
         }
     }
     Ok(Some(view))
@@ -141,17 +185,21 @@ pub fn accept_request(request_hash: ActionHash) -> ExternResult<LoanView> {
     create_link(request.book.clone(), loan_hash.clone(), LinkTypes::BookToLoans, ())?;
     create_link(borrower.clone(), loan_hash.clone(), LinkTypes::BorrowerToLoans, ())?;
     create_link(me()?, loan_hash.clone(), LinkTypes::OwnerToLoans, ())?;
+    seal_my_details_for(&borrower, DetailsContext::Loan(loan_hash.clone()))?;
     remove_request(&request_hash)?;
     Ok(LoanView {
         loan_hash,
         book_hash: request.book,
         owner: me()?,
         borrower,
+        request: request_hash,
         started_at: sys_time()?,
-        status: LoanStatus::Active,
+        status: LoanStatus::AwaitingHandoff,
         last_event: None,
         last_event_at: None,
         last_notice: None,
+        last_note: None,
+        handoff_method: None,
     })
 }
 
@@ -167,12 +215,54 @@ fn record_event(
     Ok(view)
 }
 
+/// Owner: "I've left it in your mailbox / in mine." Notifies the borrower.
+#[hdk_extern]
+pub fn leave_for_pickup(input: LeaveForPickupInput) -> ExternResult<LoanView> {
+    let view = loan_or_err(&input.loan_hash)?;
+    if !matches!(view.status, LoanStatus::AwaitingHandoff | LoanStatus::ReadyForPickup) {
+        return Err(guest_error("This book has already been handed over"));
+    }
+    let note = input.note.clone().filter(|n| !n.trim().is_empty());
+    let mut view = record_event(
+        view,
+        EntryTypes::HandoffNotice(HandoffNotice {
+            loan: input.loan_hash,
+            method: input.method.clone(),
+            note: note.clone(),
+        }),
+        LoanEventKind::HandoffNotice,
+        HANDOFF_TAG,
+    )?;
+    view.last_note = note;
+    view.handoff_method = Some(input.method);
+    Ok(view)
+}
+
+/// The book changed hands: the owner handed it over in person, or the
+/// borrower picked it up. Starts the loan and notifies the other party.
+#[hdk_extern]
+pub fn confirm_handover(loan_hash: ActionHash) -> ExternResult<LoanView> {
+    let view = loan_or_err(&loan_hash)?;
+    if !matches!(view.status, LoanStatus::AwaitingHandoff | LoanStatus::ReadyForPickup) {
+        return Err(guest_error("This book has already been handed over"));
+    }
+    record_event(
+        view,
+        EntryTypes::PickupConfirmation(PickupConfirmation { loan: loan_hash }),
+        LoanEventKind::PickupConfirmation,
+        PICKUP_TAG,
+    )
+}
+
 /// Borrower: "I've returned it." Notifies the owner (see signals.rs).
 #[hdk_extern]
 pub fn mark_returned(loan_hash: ActionHash) -> ExternResult<LoanView> {
     let view = loan_or_err(&loan_hash)?;
     match view.status {
         LoanStatus::Active => {}
+        LoanStatus::AwaitingHandoff | LoanStatus::ReadyForPickup => {
+            return Err(guest_error("You haven't picked it up yet"))
+        }
         LoanStatus::ReturnPending => return Err(guest_error("You've already marked this book returned")),
         LoanStatus::Closed => return Err(guest_error("This loan is already closed")),
     }
@@ -206,16 +296,19 @@ pub fn dispute_return(input: DisputeReturnInput) -> ExternResult<LoanView> {
     let (LoanStatus::ReturnPending, Some(notice)) = (&view.status, view.last_notice.clone()) else {
         return Err(guest_error("There's no return to dispute"));
     };
-    record_event(
+    let note = input.note.filter(|n| !n.trim().is_empty());
+    let mut view = record_event(
         view,
         EntryTypes::ReturnDispute(ReturnDispute {
             loan: input.loan_hash,
             notice,
-            note: input.note,
+            note: note.clone(),
         }),
         LoanEventKind::ReturnDispute,
         DISPUTE_TAG,
-    )
+    )?;
+    view.last_note = note;
+    Ok(view)
 }
 
 #[hdk_extern]
@@ -232,8 +325,13 @@ pub fn get_pending_actions() -> ExternResult<PendingActions> {
         .into_iter()
         .filter(|loan| loan.status == LoanStatus::ReturnPending)
         .collect();
+    let ready_for_pickup = views_from(links(me()?, LinkTypes::BorrowerToLoans)?)?
+        .into_iter()
+        .filter(|loan| loan.status == LoanStatus::ReadyForPickup)
+        .collect();
     Ok(PendingActions {
         incoming_requests: get_incoming_requests(())?,
         returns_to_confirm,
+        ready_for_pickup,
     })
 }

@@ -3,6 +3,8 @@
 
 mod books;
 mod common;
+mod details;
+mod handoff;
 mod loans;
 mod returns;
 mod validation;

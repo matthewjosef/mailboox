@@ -3,9 +3,11 @@ use hdi::prelude::*;
 pub mod book;
 pub mod helpers;
 pub mod loan;
+pub mod profile;
 
 pub use book::*;
 pub use loan::*;
+pub use profile::*;
 
 use helpers::*;
 
@@ -21,6 +23,12 @@ pub enum EntryTypes {
     ReturnNotice(ReturnNotice),
     ReturnDispute(ReturnDispute),
     ReturnReceipt(ReturnReceipt),
+    HandoffNotice(HandoffNotice),
+    PickupConfirmation(PickupConfirmation),
+    LibraryProfile(LibraryProfile),
+    #[entry_type(visibility = "private")]
+    ContactDetails(ContactDetails),
+    SealedDetails(SealedDetails),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -42,10 +50,14 @@ pub enum LinkTypes {
     BorrowerToLoans,
     /// owner agent → loan
     OwnerToLoans,
-    /// loan → return notice / dispute / receipt (tag says which)
+    /// loan → handoff / pickup / return notice / dispute / receipt (tag says which)
     LoanToEvents,
     /// collection → original book action
     CollectionToBooks,
+    /// member agent → their latest LibraryProfile
+    AgentToProfile,
+    /// request or loan → sealed contact details for the other party
+    ContextToSealedDetails,
 }
 
 // Validation you perform during the genesis process. Nobody else on the network performs it, only you.
@@ -153,6 +165,11 @@ fn validate_create_entry(author: &AgentPubKey, entry: &EntryTypes) -> ExternResu
         EntryTypes::ReturnNotice(notice) => validate_create_return_notice(author, notice),
         EntryTypes::ReturnDispute(dispute) => validate_create_return_dispute(author, dispute),
         EntryTypes::ReturnReceipt(receipt) => validate_create_return_receipt(author, receipt),
+        EntryTypes::HandoffNotice(notice) => validate_create_handoff_notice(author, notice),
+        EntryTypes::PickupConfirmation(c) => validate_create_pickup_confirmation(author, c),
+        EntryTypes::LibraryProfile(profile) => validate_profile(profile),
+        EntryTypes::ContactDetails(_) => Ok(ValidateCallbackResult::Valid),
+        EntryTypes::SealedDetails(sealed) => validate_create_sealed_details(author, sealed),
     }
 }
 
@@ -174,6 +191,12 @@ fn validate_update_entry(
             }
             validate_collection(collection)
         }
+        EntryTypes::LibraryProfile(profile) => {
+            if &must_get_record_author(original_action)? != author {
+                return invalid("Only the member can edit their profile");
+            }
+            validate_profile(profile)
+        }
         // Requests, loans and their events are a permanent record.
         _ => invalid("This kind of entry can't be edited"),
     }
@@ -193,7 +216,7 @@ fn validate_delete_entry(author: &AgentPubKey, deletes: &ActionHash) -> ExternRe
         return Ok(ValidateCallbackResult::Valid);
     };
     match original {
-        EntryTypes::Book(_) | EntryTypes::Collection(_) => {
+        EntryTypes::Book(_) | EntryTypes::Collection(_) | EntryTypes::LibraryProfile(_) => {
             if original_author != author {
                 return invalid("Only the owner can delete this");
             }
@@ -276,6 +299,8 @@ fn validate_create_link(
                 NOTICE_TAG => must_get_typed::<ReturnNotice>(&event_hash)?.1.loan,
                 DISPUTE_TAG => must_get_typed::<ReturnDispute>(&event_hash)?.1.loan,
                 RECEIPT_TAG => must_get_typed::<ReturnReceipt>(&event_hash)?.1.loan,
+                HANDOFF_TAG => must_get_typed::<HandoffNotice>(&event_hash)?.1.loan,
+                PICKUP_TAG => must_get_typed::<PickupConfirmation>(&event_hash)?.1.loan,
                 _ => return invalid("Unknown loan event tag"),
             };
             if event_loan != loan_hash {
@@ -289,6 +314,24 @@ fn validate_create_link(
             let (record, _) = must_get_typed::<Collection>(&base_action_hash(base)?)?;
             if record.action().author() != author {
                 return invalid("Only the collection's owner can add books to it");
+            }
+        }
+        LinkTypes::AgentToProfile => {
+            if base != &author_hash {
+                return invalid("You can only link your own profile");
+            }
+            let (record, _) = must_get_typed::<LibraryProfile>(&target_action_hash(target)?)?;
+            if record.action().author() != author {
+                return invalid("You can only link your own profile");
+            }
+        }
+        LinkTypes::ContextToSealedDetails => {
+            let (record, sealed) = must_get_typed::<SealedDetails>(&target_action_hash(target)?)?;
+            if record.action().author() != author {
+                return invalid("Only the sender can link their sealed details");
+            }
+            if base != &AnyLinkableHash::from(sealed.context.hash().clone()) {
+                return invalid("Sealed details link has the wrong base");
             }
         }
     }
@@ -305,7 +348,9 @@ fn validate_delete_link(
         LinkTypes::AllBooks
         | LinkTypes::OwnerToBooks
         | LinkTypes::BookUpdates
-        | LinkTypes::CollectionToBooks => {
+        | LinkTypes::CollectionToBooks
+        | LinkTypes::AgentToProfile
+        | LinkTypes::ContextToSealedDetails => {
             if link_author != author {
                 return invalid("Only the link's author can remove it");
             }

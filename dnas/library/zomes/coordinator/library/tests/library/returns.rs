@@ -14,6 +14,7 @@ async fn active_loan() -> (Network, BookListing, LoanView) {
     let request: RequestView = net.call(bob, "request_borrow", book.book_hash.clone()).await;
     net.sync().await;
     let loan: LoanView = net.call(alice, "accept_request", request.request_hash).await;
+    let loan: LoanView = net.call(alice, "confirm_handover", loan.loan_hash).await;
     net.sync().await;
     (net, book, loan)
 }
@@ -83,6 +84,9 @@ async fn owner_disputes_a_return_and_the_loan_reopens() {
     .await;
 
     net.sync().await;
+    let seen_by_bob: Option<LoanView> = net.call(bob, "get_loan", loan.loan_hash.clone()).await;
+    assert_eq!(seen_by_bob.unwrap().last_note.as_deref(), Some("It's not in my mailbox"));
+
     // Bob drops it off for real and marks it returned again; Alice confirms.
     let pending: LoanView = net.call(bob, "mark_returned", loan.loan_hash.clone()).await;
     assert_eq!(pending.status, LoanStatus::ReturnPending);

@@ -29,7 +29,7 @@ async fn bob_requests_alice_accepts_and_bob_is_the_borrower() {
     // The proto-era app recorded the owner as the borrower; make sure that bug is gone.
     assert_eq!(loan.borrower, net.agent(bob));
     assert_eq!(loan.owner, net.agent(alice));
-    assert_eq!(loan.status, LoanStatus::Active);
+    assert_eq!(loan.status, LoanStatus::AwaitingHandoff);
 
     expect_signal(&mut bob_signals, |s| {
         matches!(s, LibrarySignal::RequestAccepted { loan_hash, .. } if *loan_hash == loan.loan_hash)

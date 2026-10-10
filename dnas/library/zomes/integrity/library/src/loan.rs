@@ -43,11 +43,63 @@ pub struct ReturnReceipt {
     pub loan: ActionHash,
 }
 
+/// Where the owner left the book.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum HandoffMethod {
+    BorrowersMailbox,
+    OwnersMailbox,
+    Other,
+}
+
+/// Written by the owner: "I've left it for you to pick up."
+#[hdk_entry_helper]
+#[derive(Clone, PartialEq)]
+pub struct HandoffNotice {
+    pub loan: ActionHash,
+    pub method: HandoffMethod,
+    pub note: Option<String>,
+}
+
+/// The book has changed hands: the owner handed it over in person, or the
+/// borrower confirms they picked it up. Starts the loan proper.
+#[hdk_entry_helper]
+#[derive(Clone, PartialEq)]
+pub struct PickupConfirmation {
+    pub loan: ActionHash,
+}
+
 /// Link tags on `LoanToEvents`, so a loan's status can be read from its links
 /// without fetching every event. Validation checks the tag matches the target.
+pub const HANDOFF_TAG: &[u8] = b"handoff";
+pub const PICKUP_TAG: &[u8] = b"pickup";
 pub const NOTICE_TAG: &[u8] = b"notice";
 pub const DISPUTE_TAG: &[u8] = b"dispute";
 pub const RECEIPT_TAG: &[u8] = b"receipt";
+
+pub fn validate_create_handoff_notice(
+    author: &AgentPubKey,
+    notice: &HandoffNotice,
+) -> ExternResult<ValidateCallbackResult> {
+    if &must_get_record_author(&notice.loan)? != author {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Only the book's owner can leave it for pickup".into(),
+        ));
+    }
+    Ok(ValidateCallbackResult::Valid)
+}
+
+pub fn validate_create_pickup_confirmation(
+    author: &AgentPubKey,
+    confirmation: &PickupConfirmation,
+) -> ExternResult<ValidateCallbackResult> {
+    let (record, loan) = must_get_typed::<Loan>(&confirmation.loan)?;
+    if record.action().author() != author && &loan.borrower != author {
+        return Ok(ValidateCallbackResult::Invalid(
+            "Only the owner or the borrower can confirm the book changed hands".into(),
+        ));
+    }
+    Ok(ValidateCallbackResult::Valid)
+}
 
 pub fn validate_create_borrow_request(
     author: &AgentPubKey,

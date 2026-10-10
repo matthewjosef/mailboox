@@ -10,6 +10,7 @@ async fn lent_book(n: usize) -> (Network, BookListing, LoanView) {
     let request: RequestView = net.call(bob, "request_borrow", book.book_hash.clone()).await;
     net.sync().await;
     let loan: LoanView = net.call(alice, "accept_request", request.request_hash).await;
+    let loan: LoanView = net.call(alice, "confirm_handover", loan.loan_hash).await;
     net.sync().await;
     (net, book, loan)
 }

@@ -2,6 +2,7 @@ use hdk::prelude::*;
 use library_integrity::*;
 
 use crate::books::my_book_hashes;
+use crate::profile::seal_my_details_for;
 use crate::utils::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -22,6 +23,9 @@ pub fn request_borrow(book_hash: ActionHash) -> ExternResult<RequestView> {
     }))?;
     create_link(book_hash.clone(), request_hash.clone(), LinkTypes::BookToRequests, ())?;
     create_link(me()?, request_hash.clone(), LinkTypes::RequesterToRequests, ())?;
+    // The owner gets the requester's exact details, encrypted to them alone.
+    let owner = get_record(&book_hash)?.action().author().clone();
+    seal_my_details_for(&owner, DetailsContext::Request(request_hash.clone()))?;
     Ok(RequestView {
         request_hash,
         book_hash,

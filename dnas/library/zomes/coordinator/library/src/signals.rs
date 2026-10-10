@@ -21,6 +21,17 @@ pub enum Signal {
         request_hash: ActionHash,
         book_hash: ActionHash,
     },
+    HandoffReady {
+        loan_hash: ActionHash,
+        book_hash: ActionHash,
+        method: HandoffMethod,
+        note: Option<String>,
+    },
+    HandoverConfirmed {
+        loan_hash: ActionHash,
+        book_hash: ActionHash,
+        by: AgentPubKey,
+    },
     BookReturned {
         loan_hash: ActionHash,
         book_hash: ActionHash,
@@ -140,7 +151,37 @@ fn notify(committed: &[SignedActionHashed]) -> ExternResult<()> {
                     loan.borrower,
                 )?;
             }
-            EntryTypes::Book(_) | EntryTypes::Collection(_) => {}
+            EntryTypes::HandoffNotice(notice) => {
+                let loan: Loan = decode_entry(&get_record(&notice.loan)?)?;
+                send(
+                    Signal::HandoffReady {
+                        loan_hash: notice.loan,
+                        book_hash: loan.book,
+                        method: notice.method,
+                        note: notice.note,
+                    },
+                    loan.borrower,
+                )?;
+            }
+            EntryTypes::PickupConfirmation(confirmation) => {
+                let loan_record = get_record(&confirmation.loan)?;
+                let loan: Loan = decode_entry(&loan_record)?;
+                let owner = loan_record.action().author().clone();
+                let other = if owner == me()? { loan.borrower } else { owner };
+                send(
+                    Signal::HandoverConfirmed {
+                        loan_hash: confirmation.loan,
+                        book_hash: loan.book,
+                        by: me()?,
+                    },
+                    other,
+                )?;
+            }
+            EntryTypes::Book(_)
+            | EntryTypes::Collection(_)
+            | EntryTypes::LibraryProfile(_)
+            | EntryTypes::ContactDetails(_)
+            | EntryTypes::SealedDetails(_) => {}
         }
     }
 

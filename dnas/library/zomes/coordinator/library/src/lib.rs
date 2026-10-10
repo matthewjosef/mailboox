@@ -2,12 +2,14 @@ use hdk::prelude::*;
 
 pub mod books;
 pub mod loans;
+pub mod profile;
 pub mod requests;
 pub mod signals;
 mod utils;
 
 pub use books::*;
 pub use loans::*;
+pub use profile::*;
 pub use requests::*;
 pub use signals::*;
 
