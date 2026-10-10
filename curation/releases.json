@@ -10,6 +10,17 @@
       },
       "changelog": "First release for Moss 0.16 / Holochain 0.7: shared neighbourhood library, borrow requests, mailbox handoff and pickup, returns with confirm or \"not received\" notes, approximate locations with distances, and exact addresses shared encrypted with the other party only.",
       "releasedAt": 1791613054918
+    },
+    {
+      "version": "0.1.1",
+      "url": "https://github.com/matthewjosef/mailboox/releases/download/v0.1.1/mailboox.webhapp",
+      "hashes": {
+        "happSha256": "69e406efa272c25fe3cb40f34648b93b858833a8c8ee7e5b511258b916457877",
+        "webhappSha256": "f348ae82f83b57c34018012303904e9b2702eb2a6d9dd97ed1f53eb29a0c00f2",
+        "uiSha256": "fd91b8a7c2eba8d01f384fd6ffec45bd266fdf2b6180ef9b7227cbde4ca61b0e"
+      },
+      "changelog": "Scan books with your camera: photograph a shelf or a single book, and a vision model running locally in Ollama reads the titles (photos never leave your computer). Suggestions are matched on Open Library and Google Books, then reviewed as a list with an Add / Skip toggle per book and Add all, or one card at a time with keyboard shortcuts and undo. Every suggestion can be edited or matched to a different edition, and books already on your shelf are set aside.",
+      "releasedAt": 1791617276980
     }
   ]
 }
