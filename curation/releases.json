@@ -21,6 +21,17 @@
       },
       "changelog": "Scan books with your camera: photograph a shelf or a single book, and a vision model running locally in Ollama reads the titles (photos never leave your computer). Suggestions are matched on Open Library and Google Books, then reviewed as a list with an Add / Skip toggle per book and Add all, or one card at a time with keyboard shortcuts and undo. Every suggestion can be edited or matched to a different edition, and books already on your shelf are set aside.",
       "releasedAt": 1791617276980
+    },
+    {
+      "version": "0.1.2",
+      "url": "https://github.com/matthewjosef/mailboox/releases/download/v0.1.2/mailboox.webhapp",
+      "hashes": {
+        "happSha256": "69e406efa272c25fe3cb40f34648b93b858833a8c8ee7e5b511258b916457877",
+        "webhappSha256": "37641f417bb189c1a41b8d4a77975f16e6662b0d996e03c5aed2c3761ddc2373",
+        "uiSha256": "a0135d0d708fc0bcd214c3d2343d48ea5e06c67176597f177a933e823a9d6164"
+      },
+      "changelog": "Fixes adding scanned books inside Moss: \"Add all\" and adding books one at a time failed with a DataCloneError, because the suggestions were sent to Moss as reactive state rather than plain data. All zome calls now send plain data.",
+      "releasedAt": 1791642317687
     }
   ]
 }

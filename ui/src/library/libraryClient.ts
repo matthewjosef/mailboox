@@ -16,6 +16,17 @@ import type {
 export const ROLE_NAME = "library";
 export const ZOME_NAME = "library";
 
+/**
+ * Copy reactive state (Svelte 5 wraps objects and arrays in Proxies) into plain data.
+ * Inside Moss, zome calls are posted to the parent window for signing, and postMessage
+ * can't clone Proxies. Hashes (Uint8Array) and primitives pass through unchanged.
+ */
+export function toPlain<T>(value: T): T {
+  if (value === null || typeof value !== "object" || ArrayBuffer.isView(value)) return value;
+  if (Array.isArray(value)) return value.map(toPlain) as T;
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toPlain(v)])) as T;
+}
+
 /** Typed wrapper around the library zome. Works with a plain AppWebsocket or Moss's applet client. */
 export class LibraryClient {
   constructor(public client: AppClient) {}
@@ -25,7 +36,7 @@ export class LibraryClient {
   }
 
   private call<T>(fn_name: string, payload: unknown = null): Promise<T> {
-    return this.client.callZome({ role_name: ROLE_NAME, zome_name: ZOME_NAME, fn_name, payload });
+    return this.client.callZome({ role_name: ROLE_NAME, zome_name: ZOME_NAME, fn_name, payload: toPlain(payload) });
   }
 
   // Books
