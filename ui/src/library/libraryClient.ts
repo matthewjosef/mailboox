@@ -35,8 +35,14 @@ export class LibraryClient {
     return this.client.myPubKey;
   }
 
-  private call<T>(fn_name: string, payload: unknown = null): Promise<T> {
-    return this.client.callZome({ role_name: ROLE_NAME, zome_name: ZOME_NAME, fn_name, payload: toPlain(payload) });
+  private async call<T>(fn_name: string, payload: unknown = null): Promise<T> {
+    try {
+      return await this.client.callZome({ role_name: ROLE_NAME, zome_name: ZOME_NAME, fn_name, payload: toPlain(payload) });
+    } catch (e) {
+      // Log every failure so it shows up in Moss's console, not only in the UI.
+      console.error(`[MailBoox] ${fn_name} failed:`, e);
+      throw e;
+    }
   }
 
   // Books

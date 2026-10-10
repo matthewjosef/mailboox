@@ -229,6 +229,9 @@
       />
     {/if}
 
+    {#if lib.error}
+      <p class="alert" role="alert">Couldn't add the books: {lib.error}</p>
+    {/if}
     <footer class="commit">
       <button onclick={() => ((step = "choose"), (suggestions = []))}>Start over</button>
       <span class="spacer"></span>

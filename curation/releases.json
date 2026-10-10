@@ -32,6 +32,17 @@
       },
       "changelog": "Fixes adding scanned books inside Moss: \"Add all\" and adding books one at a time failed with a DataCloneError, because the suggestions were sent to Moss as reactive state rather than plain data. All zome calls now send plain data.",
       "releasedAt": 1791642317687
+    },
+    {
+      "version": "0.1.3",
+      "url": "https://github.com/matthewjosef/mailboox/releases/download/v0.1.3/mailboox.webhapp",
+      "hashes": {
+        "happSha256": "69e406efa272c25fe3cb40f34648b93b858833a8c8ee7e5b511258b916457877",
+        "webhappSha256": "42a669c1c2dbbf54fbcad0cee81355602113e0c8f6cf0b8ce934b766aba1e3cc",
+        "uiSha256": "307a6f819287aac3fcce8c0652096878f29ec68bb9234572a13b4bf5c604d1ef"
+      },
+      "changelog": "Errors when adding scanned books now appear right next to the Add buttons, and every failed zome call is logged to the console as [MailBoox] <function> failed. The app version is shown at the bottom of each page.",
+      "releasedAt": 1791643623449
     }
   ]
 }

@@ -104,6 +104,8 @@
   </main>
 {/if}
 
+<footer class="version muted">MailBoox v{__APP_VERSION__}</footer>
+
 <div class="toasts" aria-live="polite">
   {#each toasts as toast (toast.id)}
     <div class="toast" class:urgent={toast.urgency === "high"}>
@@ -145,6 +147,7 @@
   }
   main { max-width: 1100px; margin: 0 auto; }
   .centered { display: grid; place-items: center; min-height: 60vh; }
+  .version { text-align: center; font-size: 0.75rem; padding: 1.5rem 0 1rem; }
   .alert.error { margin: 0.75rem 1rem 0; display: flex; justify-content: space-between; gap: 1rem; }
   .toasts { position: fixed; right: 1rem; bottom: 1rem; display: grid; gap: 0.5rem; z-index: 10; max-width: min(24rem, calc(100vw - 2rem)); }
   .toast {
