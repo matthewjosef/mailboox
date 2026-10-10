@@ -28,17 +28,21 @@ export interface Connection {
 
 /** Connect inside Moss if we're a Tool there, otherwise straight to Holochain. */
 export async function connect(): Promise<Connection> {
+  // In Moss dev mode the UI is served from localhost, so the Weave API only
+  // exists once hot reload has fetched Moss's iframe script. Do that before
+  // checking for a Weave context. Only inside a frame: at the top level there's
+  // no Moss parent to answer, as with `npm run dev:browser`.
+  if (import.meta.env.DEV && window.self !== window.top) {
+    try {
+      await initializeHotReload();
+    } catch (e) {
+      console.warn("Not running in Moss dev mode", e);
+    }
+  }
   return isWeaveContext() ? connectWeave() : connectStandalone();
 }
 
 async function connectWeave(): Promise<Connection> {
-  if (import.meta.env.DEV) {
-    try {
-      await initializeHotReload();
-    } catch (e) {
-      console.warn("Hot reload only works in Weave dev mode", e);
-    }
-  }
   const { createAppletServices, libraryDnaHash } = await import("./weave/appletServices");
   const { ProfileNames } = await import("./weave/profiles.svelte");
 
