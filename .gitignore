@@ -1,48 +1,29 @@
-.bundle
-db/*.sqlite3
-config/database.yml
-config/newrelic.yml
-tmp/
-.sass-cache/
-*.swp
-.rvmrc
-.ruby-gemset
-*.tmproj
-*.DS_Store
-coverage
-.project
-Session.vim
-*.sql
-*.dump
-*.log
-.idea
-.env
-bin/
-.powenv
-.byebug_history
+# editors
+/.idea
+/.vscode
 
-public/client
-public/system
-public/uploads
-public/img/emojis
-ui-src/node_modules
+# system files
+.DS_Store
 
-/dev_plugins/
-/fetched_plugins/
-/plugins
+# build
+/dist/
+/target/
+/.cargo/
 
-client/node_modules
-client/angular/dependencies
-client/tasks/config/plugins.yml
-client/angular/templates.coffee
+# package manager
+/**/node_modules/
+/.yarn
 
-# Holochain / Moss tooling
-target/
-node_modules/
-dist/
-dist.zip
+# generated and compiled files
 *.happ
 *.webhapp
+*.zip
 *.dna
+
+# temporary files
 .hc*
 .running
+.hc
+
+# Moss dev
+.weave*
