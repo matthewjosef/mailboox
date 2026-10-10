@@ -37,8 +37,10 @@ Google Books as a fallback), and you review the suggestions either as a list wit
 and an **Add all** button, or one card at a time (← skip, → add, E edit, Backspace undo). Anything can be edited,
 including picking a different catalogue match; books already on your shelf are set aside.
 
-Shelf photos are read in several passes: the whole photo, overlapping close-ups, a copy turned sideways for upright
-spines and, when the model sees leaning books, copies turned to straighten them. This takes a few minutes per photo;
+Shelf photos are read in several passes: the whole photo, a copy turned sideways for upright spines and, when the model
+sees leaning books, copies turned to straighten them. The readings are merged: authors come from the sideways copy (the
+whole photo tends to pair titles with a neighbour's author), cut-off titles and scraps are dropped, and an author read
+as a book of its own is removed. This takes two or three minutes per photo;
 **Use what's read so far** stops early and keeps what's been read. Anything it misses can be typed in with **Add a book it missed**.
 
 Setup (the app walks you through it): install Ollama, allow Moss tools with `OLLAMA_ORIGINS="applet://*"`, and
@@ -46,7 +48,9 @@ Setup (the app walks you through it): install Ollama, allow Moss tools with `OLL
 
 To check accuracy, put photos in `scanner-eval/photos/` (git-ignored) with a same-named `.txt` listing
 `Title — Author` per line (any photo with more than one labelled book is read as a shelf), then run `npm run scanner:eval`.
-`STRATEGY=single` compares against a single pass; `LOOKUP=1` also checks the correct readings against Open Library.
+Wrong readings are named (partial title, author read as a title, another book's author). `STRATEGY=single` compares
+against a single pass and `STRATEGY=tiles,turn,straighten` adds close-ups; `LOOKUP=1` grades what would be added after
+the catalogue lookup; `READINGS=dir` saves each pass's readings and reuses them, to try merging changes without the model.
 
 ## Releasing
 

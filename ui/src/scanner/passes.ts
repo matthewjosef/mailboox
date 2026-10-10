@@ -1,7 +1,7 @@
 // Reading a whole shelf in several passes: the full photo, then overlapping close-ups (more pixels
 // per spine), then turned copies so sideways and leaning spines read as normal text. Pure logic;
 // the caller renders each pass (canvas in the app, sips in the eval) and asks the model.
-import { similarity } from "./matching";
+import { normalizeTitle, similarity } from "./matching";
 import type { Detection } from "./recognition";
 
 /** What the model says about how the books sit, from the first look at the whole photo. */
@@ -34,7 +34,9 @@ export interface Strategy {
   straighten: boolean;
 }
 
-export const THOROUGH: Strategy = { tiles: true, quarterTurn: true, straighten: true };
+/** The default. Close-ups are off: on a 32-book shelf they found nothing the sideways copy missed, added
+ *  fragments ("IND", "CONNECT"), and took 400 of 600 seconds. */
+export const THOROUGH: Strategy = { tiles: false, quarterTurn: true, straighten: true };
 
 const WHOLE = { x: 0, y: 0, w: 1, h: 1 };
 export const FULL_PASS: Pass = { label: "the whole photo", rect: WHOLE, rotate: 0 };
@@ -90,26 +92,84 @@ function sameReading(a: Detection, b: Detection): boolean {
   return similarity(a.author, b.author) >= 0.5;
 }
 
-/** Combine readings from every pass. A book read in more than one pass is more likely right. */
+const samePerson = (a: string, b: string) => similarity(a, b) >= 0.85;
+const contains = (longer: string, shorter: string) => ` ${normalizeTitle(longer)} `.includes(` ${normalizeTitle(shorter)} `);
+/** "Traveling Mercies: Some Thoughts on Faith" is fuller than "Traveling Mercies". */
+const fuller = (a: string, b: string) => normalizeTitle(a).length > normalizeTitle(b).length && contains(a, b);
+
+/** The most-read author, preferring closer looks: the whole photo is where neighbours' authors get mixed up. */
+function chooseAuthor(sightings: { name: string; closer: boolean }[]): string | null {
+  const pool = sightings.some((s) => s.closer) ? sightings.filter((s) => s.closer) : sightings;
+  let best: { name: string; votes: number } | null = null;
+  for (const { name } of pool) {
+    const votes = pool.filter((s) => similarity(s.name, name) >= 0.7).length;
+    if (!best || votes > best.votes) best = { name, votes };
+  }
+  return best?.name ?? null;
+}
+
+/** Combine readings from every pass (the first list is the whole photo). A book read in more than one pass is more likely right. */
 export function mergeDetections(lists: Detection[][]): Detection[] {
-  const merged: { best: Detection; seen: number; author: string | null }[] = [];
-  for (const list of lists) {
+  const merged: { best: Detection; closer: boolean; title: string; seen: number; authors: { name: string; closer: boolean }[] }[] = [];
+  lists.forEach((list, i) => {
+    const closer = i > 0;
     for (const d of list) {
       const same = merged.find((m) => sameReading(m.best, d));
+      const author = d.author ? [{ name: d.author, closer }] : [];
       if (!same) {
-        merged.push({ best: d, seen: 1, author: d.author });
+        merged.push({ best: d, closer, title: d.title, seen: 1, authors: author });
         continue;
       }
       same.seen++;
-      same.author ??= d.author;
-      if (d.confidence > same.best.confidence) same.best = d;
+      same.authors.push(...author);
+      const better = d.confidence > same.best.confidence || (d.confidence === same.best.confidence && closer && !same.closer);
+      if (better) Object.assign(same, { best: d, closer, title: fuller(same.title, d.title) ? same.title : d.title });
+      else if (fuller(d.title, same.title) && d.confidence >= same.best.confidence - 0.2) same.title = d.title;
+    }
+  });
+  return tidy(
+    merged.map((m) => ({ title: m.title, author: chooseAuthor(m.authors), confidence: Math.min(1, m.best.confidence + 0.1 * (m.seen - 1)) })),
+  );
+}
+
+/** Drop the left-overs of misreading a shelf: scraps, cut-off titles, authors read as books, and mixed-up fields. */
+function tidy(books: Detection[]): Detection[] {
+  const others = (b: Detection) => books.filter((o) => o !== b);
+  const namesBesides = (b: Detection) => others(b).flatMap((o) => (o.author ? [o.author] : []));
+  // The author's name read as a book of its own.
+  books = books.filter((b) => !((!b.author || samePerson(b.author, b.title)) && namesBesides(b).some((n) => samePerson(n, b.title))));
+  books = books.map((b) => splitAuthor(b, namesBesides(b)));
+  // An author that is another book's title ("Fool's Crow / Bhagavad Gita").
+  books = books.map((b) => (b.author && others(b).some((o) => similarity(b.author!, o.title) >= 0.9) ? { ...b, author: null } : b));
+  const compatible = (a: Detection, b: Detection) => !a.author || !b.author || similarity(a.author, b.author) >= 0.5;
+  const kept: Detection[] = [];
+  for (const b of books) {
+    const words = normalizeTitle(b.title).split(" ");
+    // A cut-off title ("CONNECT" of "How to Connect") belongs to the one full title it fits; if it fits several, it's a guess.
+    const containers = books.filter((o) => o !== b && fuller(o.title, b.title) && compatible(o, b));
+    if (containers.length && (words.length > 1 || words[0].length >= 5)) {
+      const [whole] = containers;
+      if (containers.length === 1 && !whole.author && b.author) Object.assign(whole, { author: b.author });
+      continue;
+    }
+    // Scraps like "IND" or "et", unless an author says it's a real (short) title.
+    if (!b.author && normalizeTitle(b.title).replace(/ /g, "").length < 4) continue;
+    kept.push(b);
+  }
+  return kept;
+}
+
+/** "Thich Nhat Hanh Peace Begins Here": take off a known author's name from the start or end of a title. */
+function splitAuthor(b: Detection, names: string[]): Detection {
+  const words = b.title.split(/\s+/);
+  for (const name of names) {
+    const n = normalizeTitle(name);
+    for (let k = 1; k < words.length; k++) {
+      if (normalizeTitle(words.slice(0, k).join(" ")) === n) return { ...b, title: words.slice(k).join(" "), author: b.author ?? name };
+      if (normalizeTitle(words.slice(-k).join(" ")) === n) return { ...b, title: words.slice(0, -k).join(" "), author: b.author ?? name };
     }
   }
-  return merged.map(({ best, seen, author }) => ({
-    ...best,
-    author: best.author ?? author,
-    confidence: Math.min(1, best.confidence + 0.1 * (seen - 1)),
-  }));
+  return b;
 }
 
 export interface ShelfReading {

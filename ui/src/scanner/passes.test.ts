@@ -1,13 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { mergeDetections, NO_LAYOUT, planPasses, readShelf, type Layout } from "./passes";
+import { mergeDetections, NO_LAYOUT, planPasses, readShelf, THOROUGH, type Layout } from "./passes";
 import type { Detection } from "./recognition";
 
 const d = (title: string, author: string | null = null, confidence = 0.8): Detection => ({ title, author, confidence });
 
+const withTiles = { ...THOROUGH, tiles: true };
+
 describe("planPasses", () => {
-  it("adds overlapping close-ups covering a big photo, plus a sideways copy for upright spines", () => {
-    const passes = planPasses(4032, 3024, NO_LAYOUT);
+  it("by default turns the photo sideways for upright spines, without close-ups", () => {
+    // On a 32-book shelf, close-ups found nothing new, added fragments ("IND", "CONNECT") and took 400 of 600 seconds.
+    expect(planPasses(4032, 3024, NO_LAYOUT).map((p) => p.label)).toEqual(["the photo turned sideways"]);
+  });
+
+  it("can add overlapping close-ups covering a big photo", () => {
+    const passes = planPasses(4032, 3024, NO_LAYOUT, withTiles);
     const tiles = passes.filter((p) => p.label.startsWith("close-up"));
     expect(tiles).toHaveLength(4);
     // Corners covered, neighbours overlap.
@@ -18,8 +25,8 @@ describe("planPasses", () => {
   });
 
   it("uses a wider grid for a long, low shelf and none for a small photo", () => {
-    expect(planPasses(4000, 1500, NO_LAYOUT).filter((p) => p.label.startsWith("close-up"))).toHaveLength(6);
-    expect(planPasses(960, 644, NO_LAYOUT).filter((p) => p.label.startsWith("close-up"))).toHaveLength(0);
+    expect(planPasses(4000, 1500, NO_LAYOUT, withTiles).filter((p) => p.label.startsWith("close-up"))).toHaveLength(6);
+    expect(planPasses(960, 644, NO_LAYOUT, withTiles).filter((p) => p.label.startsWith("close-up"))).toHaveLength(0);
   });
 
   it("straightens leaning books both ways, only when there are some", () => {
@@ -53,6 +60,57 @@ describe("mergeDetections", () => {
   it("keeps similar but different titles by different authors apart", () => {
     expect(mergeDetections([[d("The Hobbit", "J. R. R. Tolkien")], [d("The Habit", "Charles Duhigg")]])).toHaveLength(2);
   });
+
+  // Real readings of a 32-book shelf. The first, whole-photo look paired several titles with the
+  // next spine's author; the sideways copy, where spine text runs left to right, got them right.
+  it("takes authors from the closer look when the whole photo paired titles with a neighbour's author", () => {
+    const merged = mergeDetections([
+      [d("THE ART OF GATHERING", "Anne Lamott", 1), d("ALL ABOUT LOVE", "Thich Nhat Hanh", 1), d("BIRD BY BIRD", "Anne Lamott", 1)],
+      [d("Bird by Bird", "Anne Lamott", 1), d("The Art of Gathering", "Priya Parker", 1), d("All About Love", "bell hooks", 1)],
+    ]);
+    expect(merged.map((m) => `${m.title} / ${m.author}`)).toEqual([
+      "The Art of Gathering / Priya Parker",
+      "All About Love / bell hooks",
+      "Bird by Bird / Anne Lamott",
+    ]);
+  });
+
+  it("drops an author that is really another book's title", () => {
+    const merged = mergeDetections([[d("FOOL'S CROW", "BHAGAVAD GITA", 1), d("Bhagavad Gita", "Swami Prabhavananda", 1)]]);
+    expect(merged.find((m) => m.title === "FOOL'S CROW")!.author).toBeNull();
+  });
+
+  it("folds a cut-off title into the full one, and drops scraps", () => {
+    const merged = mergeDetections([
+      [d("HOW TO CONNECT", "Thich Nhat Hanh", 1), d("HOW TO SEE", "Thich Nhat Hanh", 1), d("TRAVELING MERCIES", "Anne Lamott", 0.9)],
+      [d("CONNECT", null, 1), d("IND", null, 1), d("et", null, 1), d("Traveling Mercies: Some Thoughts on Faith", null, 0.8)],
+    ]);
+    expect(merged.map((m) => `${m.title} / ${m.author}`)).toEqual([
+      "HOW TO CONNECT / Thich Nhat Hanh",
+      "HOW TO SEE / Thich Nhat Hanh",
+      "Traveling Mercies: Some Thoughts on Faith / Anne Lamott",
+    ]);
+    // A short title of its own is kept: "The How" isn't part of "How to See".
+    expect(mergeDetections([[d("How to See", "Thich Nhat Hanh"), d("The How", "Yrsa Daley-Ward")]])).toHaveLength(2);
+    // A fragment that fits two titles is dropped rather than guessed.
+    expect(mergeDetections([[d("The Art of War"), d("The Art of Gathering"), d("Art of")]]).map((m) => m.title)).toEqual([
+      "The Art of War",
+      "The Art of Gathering",
+    ]);
+    // Short real titles with an author stay.
+    expect(mergeDetections([[d("It", "Stephen King")]])).toHaveLength(1);
+  });
+
+  it("drops an author read as a book, and splits a title run together with its author", () => {
+    const merged = mergeDetections([
+      [d("Bird by Bird", "Anne Lamott"), d("ANNE LAMOTT"), d("Thich Nhat Hanh Peace Begins Here"), d("How to See", "Thich Nhat Hanh")],
+    ]);
+    expect(merged.map((m) => `${m.title} / ${m.author}`)).toEqual([
+      "Bird by Bird / Anne Lamott",
+      "Peace Begins Here / Thich Nhat Hanh",
+      "How to See / Thich Nhat Hanh",
+    ]);
+  });
 });
 
 describe("readShelf", () => {
@@ -64,7 +122,7 @@ describe("readShelf", () => {
       .mockResolvedValueOnce({ detections: [d("Emma")], layout: NO_LAYOUT })
       .mockResolvedValue({ detections: [d("Dune")], layout: null });
     const progress: string[] = [];
-    const result = await readShelf({ ...big, render: async (p) => p.label, read, onProgress: (n, of) => progress.push(`${n}/${of}`) });
+    const result = await readShelf({ ...big, strategy: withTiles, render: async (p) => p.label, read, onProgress: (n, of) => progress.push(`${n}/${of}`) });
     expect(result.passesPlanned).toBe(6);
     expect(result.passesRead).toBe(6);
     expect(result.detections.map((x) => x.title)).toEqual(["Emma", "Dune"]);
@@ -79,7 +137,7 @@ describe("readShelf", () => {
       .mockRejectedValueOnce(new Error("GGML_ASSERT"))
       .mockResolvedValue({ detections: [], layout: null });
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const result = await readShelf({ ...big, render: async () => "", read });
+    const result = await readShelf({ ...big, strategy: withTiles, render: async () => "", read });
     expect(result.passesRead).toBe(5);
     await expect(readShelf({ ...big, render: async () => "", read: vi.fn().mockRejectedValue(new Error("down")) })).rejects.toThrow("down");
   });
@@ -90,7 +148,7 @@ describe("readShelf", () => {
       if (read.mock.calls.length === 2) enough.abort();
       return { detections: [d(`Book ${read.mock.calls.length}`)], layout: NO_LAYOUT };
     });
-    const result = await readShelf({ ...big, render: async () => "", read, enough: enough.signal });
+    const result = await readShelf({ ...big, strategy: withTiles, render: async () => "", read, enough: enough.signal });
     expect(result.passesRead).toBe(2);
     expect(result.detections).toHaveLength(2);
 

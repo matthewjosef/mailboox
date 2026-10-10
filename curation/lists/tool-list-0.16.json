@@ -89,6 +89,17 @@
           },
           "changelog": "Shelf photos are now read in several passes (the whole photo, overlapping close-ups, a copy turned sideways for upright spines, and turned copies when leaning books are seen), with \"Use what's read so far\" to stop early and \"Add a book it missed\" in the review. New: export your shelf to a file and import it into another copy of MailBoox (My details), which also merges copies made by adding MailBoox to a group more than once. MailBoox now shows a banner when an update is out: update from Moss's home screen under Software updates, and don't add MailBoox again, because each copy is a separate library that starts empty.",
           "releasedAt": 1791662100598
+        },
+        {
+          "version": "0.1.6",
+          "url": "https://github.com/matthewjosef/mailboox/releases/download/v0.1.6/mailboox.webhapp",
+          "hashes": {
+            "happSha256": "69e406efa272c25fe3cb40f34648b93b858833a8c8ee7e5b511258b916457877",
+            "webhappSha256": "26355410cbed2f7cc8b66e93cadb77e59e328fbe881fa57c90a42b5b8198359d",
+            "uiSha256": "e44fd9e14e8dfd51f5246b1eace855dca084f2cfa936a9af277039997a30d923"
+          },
+          "changelog": "Cleaner shelf scans: authors now come from the sideways reading of the photo (the whole-photo look often paired a title with the next book's author), an author read as another book's title is dropped, cut-off titles fold into the full title, scraps and authors read as books of their own are removed, and titles run together with an author are split. Close-ups are off, so a shelf takes two or three minutes instead of about ten.",
+          "releasedAt": 1791668852471
         }
       ]
     }
