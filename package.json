@@ -11,9 +11,11 @@
     "launch:happ": "hc-spin -n $AGENTS --ui-port $UI_PORT workdir/mailboox.happ",
     "package": "npm run build:happ && npm run package --workspace ui && hc web-app pack workdir --recursive",
     "build:happ": "npm run build:zomes && hc app pack workdir --recursive",
-    "build:zomes": "RUSTFLAGS='--cfg getrandom_backend=\"custom\"' cargo build --release --target wasm32-unknown-unknown"
+    "build:zomes": "RUSTFLAGS='--cfg getrandom_backend=\"custom\"' cargo build --release --target wasm32-unknown-unknown",
+    "dev:browser": "npm run build:happ && node scripts/browser-dev.mjs"
   },
   "devDependencies": {
+    "@holochain/client": "0.21.0",
     "@holochain/hc-spin": "^0.700.0",
     "concurrently": "^6.5.1",
     "get-port-cli": "^3.0.0"

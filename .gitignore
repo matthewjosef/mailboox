@@ -28,3 +28,4 @@
 # Moss dev
 .weave*
 /.nix/
+ui/dist/

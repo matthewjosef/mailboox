@@ -4,7 +4,9 @@
   "scripts": {
     "start": "vite --clearScreen false --port $UI_PORT",
     "build": "vite build",
-    "package": "npm run build && rimraf dist.zip && cd dist && bestzip ../dist.zip *"
+    "package": "npm run build && rimraf dist.zip && cd dist && bestzip ../dist.zip *",
+    "test": "vitest run",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
     "@holochain/client": "^0.21.0",
@@ -16,9 +18,11 @@
     "bestzip": "^2.2.1",
     "rimraf": "^5.0.10",
     "svelte": "^5.0.0",
+    "svelte-check": "4.7.6",
     "tslib": "^2.8.0",
     "typescript": "^5.6.3",
-    "vite": "^6.2.5"
+    "vite": "^6.2.5",
+    "vitest": "3.2.7"
   },
   "type": "module"
 }

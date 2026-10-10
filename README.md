@@ -16,6 +16,8 @@ nix develop --profile .nix/devshell   # Holochain 0.7, hc, hc-scaffold, Rust, No
 npm install
 npm test                              # builds the DNA, then runs the Sweettest scenarios
 npm start                             # two agents in hc-spin
+npm run dev:browser                   # two agents in ordinary browser tabs (prints a URL per agent)
+npm test -w ui                        # UI unit tests (Vitest)
 ```
 
 `--profile` keeps the dev tools from being garbage-collected between sessions.
