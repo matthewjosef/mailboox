@@ -43,6 +43,17 @@
       },
       "changelog": "Errors when adding scanned books now appear right next to the Add buttons, and every failed zome call is logged to the console as [MailBoox] <function> failed. The app version is shown at the bottom of each page.",
       "releasedAt": 1791643623449
+    },
+    {
+      "version": "0.1.4",
+      "url": "https://github.com/matthewjosef/mailboox/releases/download/v0.1.4/mailboox.webhapp",
+      "hashes": {
+        "happSha256": "69e406efa272c25fe3cb40f34648b93b858833a8c8ee7e5b511258b916457877",
+        "webhappSha256": "ec1d65aa90e75b8a66b7f1962d4cf6a68fbd53bad68d3e1796b64c4a508ab312",
+        "uiSha256": "cfb84836f50fb92442aea624b138d7c3705c130c7c1f49b6941ed64770ddcb60"
+      },
+      "changelog": "Scanning full shelves no longer crashes the reader with GGML_ASSERT(a->ne[2] * 4 == b->ne[0]): the request now gives the model a 12k-token context (a shelf photo alone uses about 2,600 of Ollama's default 4,096) and caps the answer length. If one photo still fails, the books from the other photos are kept and the failed photo is named.",
+      "releasedAt": 1791645817047
     }
   ]
 }

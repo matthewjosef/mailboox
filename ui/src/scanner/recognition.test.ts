@@ -8,6 +8,10 @@ describe("buildChatRequest", () => {
     expect(req.model).toBe("qwen2.5vl:7b");
     expect(req.stream).toBe(false);
     expect(req.options.temperature).toBe(0);
+    // A shelf photo alone is ~2,600 tokens; Ollama's default 4,096 context overflows on a full
+    // shelf and crashes qwen2.5vl with GGML_ASSERT(a->ne[2] * 4 == b->ne[0]).
+    expect(req.options.num_ctx).toBeGreaterThanOrEqual(12288);
+    expect(req.options.num_predict).toBeGreaterThan(0);
     expect(req.messages[0].images).toEqual(["BASE64"]);
     expect(req.messages[0].content).toMatch(/every book/i);
     expect(req.format.properties.books.type).toBe("array");

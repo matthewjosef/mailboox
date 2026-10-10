@@ -46,12 +46,22 @@ const SCHEMA = {
   required: ["books"],
 };
 
+/**
+ * A shelf photo costs ~2,600 tokens before the model writes anything. With Ollama's default
+ * 4,096-token context, a full shelf overflows mid-answer and qwen2.5vl crashes with
+ * GGML_ASSERT(a->ne[2] * 4 == b->ne[0]); a context smaller than the image drops the image silently.
+ */
+// Image (≤ ~2,700 tokens at our 2,048 px limit) + the answer cap, with headroom; more costs RAM on smaller laptops.
+export const CONTEXT_TOKENS = 12288;
+/** Enough for ~150 books of JSON; stops a runaway answer. */
+export const MAX_ANSWER_TOKENS = 6000;
+
 export function buildChatRequest(model: string, imageBase64: string, kind: ScanKind) {
   return {
     model,
     stream: false as const,
     format: SCHEMA,
-    options: { temperature: 0 },
+    options: { temperature: 0, num_ctx: CONTEXT_TOKENS, num_predict: MAX_ANSWER_TOKENS },
     messages: [{ role: "user" as const, content: PROMPTS[kind], images: [imageBase64] }],
   };
 }

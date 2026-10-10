@@ -4,6 +4,7 @@
   import type { LibraryState } from "../library/state.svelte";
   import { prepareImage } from "./image";
   import { findMatches } from "./lookup";
+  import { scanPhotos, type PhotoFailure } from "./pipeline";
   import { checkOllama, recognize, type OllamaStatus } from "./ollama";
   import type { ScanKind } from "./recognition";
   import RecognizerSetup from "./RecognizerSetup.svelte";
@@ -18,7 +19,6 @@
     editBook,
     undoLast,
     useCandidate,
-    type ScanResult,
     type Suggestion,
   } from "./review";
 
@@ -35,6 +35,7 @@
   let dragging = $state(false);
   let progress = $state("");
   let problem = $state<string | null>(null);
+  let failures = $state<PhotoFailure[]>([]);
   let controller: AbortController | undefined;
 
   let suggestions = $state<Suggestion[]>([]);
@@ -84,34 +85,39 @@
     files = files.filter((_, j) => j !== i);
   }
 
+  /** Ollama's own errors are long and technical; keep the first line. */
+  const shortError = (message: string) => message.split("\n")[0].slice(0, 200);
+
   async function scan() {
     step = "working";
     problem = null;
+    failures = [];
     controller = new AbortController();
-    const results: ScanResult[] = [];
+    let scanned;
     try {
-      for (const [i, { file }] of files.entries()) {
-        progress = files.length > 1 ? `Reading photo ${i + 1} of ${files.length}…` : "Reading the photo…";
-        const image = await prepareImage(file, kind);
-        const detections = await recognize(model, image.base64, kind, { signal: controller.signal });
-        for (const [j, detection] of detections.entries()) {
-          if (controller.signal.aborted) throw new DOMException("Cancelled", "AbortError");
-          progress = `Looking up ${detection.title} (${j + 1} of ${detections.length})…`;
-          results.push({ detection, lookup: await findMatches(detection) });
-          await new Promise((r) => setTimeout(r, 150)); // Be gentle with the free catalogues.
-        }
-      }
+      scanned = await scanPhotos(
+        files.map((f) => f.file),
+        kind,
+        {
+          prepare: async (file) => (await prepareImage(file, kind)).base64,
+          recognize: (image, signal) => recognize(model, image, kind, { signal }),
+          lookup: (detection) => findMatches(detection),
+          onProgress: (p) => (progress = p),
+          pause: () => new Promise((r) => setTimeout(r, 150)), // Be gentle with the free catalogues.
+          signal: controller.signal,
+        },
+      );
     } catch (e) {
-      if ((e as Error).name === "AbortError") {
-        step = "choose";
-        return;
-      }
-      problem = `Couldn't read the photos: ${(e as Error).message}`;
+      if ((e as Error).name !== "AbortError") problem = `Couldn't read the photos: ${shortError((e as Error).message)}`;
       step = "choose";
       return;
     }
+    const { results } = scanned;
+    failures = scanned.failures;
     if (!results.length) {
-      problem = "No titles could be read. Try a closer, well-lit photo with the spines facing the camera.";
+      problem = failures.length
+        ? `Couldn't read ${failures.length === 1 ? "the photo" : "any of the photos"}: ${shortError(failures[0].message)}`
+        : "No titles could be read. Try a closer, well-lit photo with the spines facing the camera.";
       step = "choose";
       return;
     }
@@ -208,6 +214,14 @@
       <button onclick={() => controller?.abort()}>Cancel</button>
     </div>
   {:else if step === "review"}
+    {#if failures.length}
+      <div class="alert" role="alert">
+        {#each failures as f}
+          <p>Couldn't read photo {f.photo}{files.length > 1 ? ` (${f.name})` : ""}: {shortError(f.message)}</p>
+        {/each}
+        <p class="small">The books from the other photos are below. Try that photo again, or take a closer one of part of the shelf.</p>
+      </div>
+    {/if}
     <p class="summary">
       Found {tally.total} {tally.total === 1 ? "book" : "books"}: <strong>{tally.add} to add</strong>{#if tally.undecided}, <strong class="look">{tally.undecided} need a look</strong>{/if}{#if tally.duplicates}, {tally.duplicates} already on your shelf{/if}.
     </p>
