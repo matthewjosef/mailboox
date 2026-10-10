@@ -27,3 +27,4 @@
 
 # Moss dev
 .weave*
+/.nix/

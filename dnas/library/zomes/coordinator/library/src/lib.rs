@@ -1,29 +1,26 @@
 use hdk::prelude::*;
-use library_integrity::*;
 
-// Called the first time a zome call is made to the cell containing this zome
+pub mod books;
+pub mod loans;
+pub mod requests;
+pub mod signals;
+mod utils;
+
+pub use books::*;
+pub use loans::*;
+pub use requests::*;
+pub use signals::*;
+
+// Called the first time a zome call is made to the cell containing this zome.
+// Other agents need to be able to send us signals (borrow requests, returns, ...).
 #[hdk_extern]
 pub fn init() -> ExternResult<InitCallbackResult> {
+    let mut functions = HashSet::new();
+    functions.insert((zome_info()?.name, FunctionName::from("recv_remote_signal")));
+    create_cap_grant(ZomeCallCapGrant {
+        tag: "remote_signals".into(),
+        access: CapAccess::Unrestricted,
+        functions: GrantedFunctions::Listed(functions),
+    })?;
     Ok(InitCallbackResult::Pass)
-}
-
-// Don't modify this enum if you want the scaffolding tool to generate appropriate signals for your entries and links
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "type")]
-pub enum Signal {}
-
-// Whenever an action is committed, we emit a signal to the UI elements to reactively update them
-#[hdk_extern(infallible)]
-pub fn post_commit(committed_actions: Vec<SignedActionHashed>) {
-    // Don't modify the for loop if you want the scaffolding tool to generate appropriate signals for your entries and links
-    for action in committed_actions {
-        if let Err(err) = signal_action(action) {
-            error!("Error signaling new action: {:?}", err);
-        }
-    }
-}
-
-// Don't modify this function if you want the scaffolding tool to generate appropriate signals for your entries and links
-fn signal_action(action: SignedActionHashed) -> ExternResult<()> {
-    Ok(())
 }
