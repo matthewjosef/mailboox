@@ -26,7 +26,9 @@ const LISTS_BASE = "https://raw.githubusercontent.com/matthewjosef/mailboox/mast
 export const TOOL_LIST_URL = `${LISTS_BASE}/tool-list-0.16.json`;
 export const CURATIONS_URL = `${LISTS_BASE}/curations-0.16.json`;
 
-const icon = `data:image/png;base64,${readFileSync(join(here, "../ui/public/icon.png")).toString("base64")}`;
+// Moss downloads the Tool icon with Electron's net.fetch and infers its type from the extension,
+// so it must be an http(s) URL ending in .png or .jpg; data: URLs fail with ERR_INVALID_ARGUMENT.
+const icon = "https://raw.githubusercontent.com/matthewjosef/mailboox/master/ui/public/icon.png";
 const releases = JSON.parse(readFileSync(join(here, "releases.json"), "utf8"));
 
 // IDs and version branches MUST NOT change once published.
@@ -99,7 +101,10 @@ console.log(`Wrote lists. Users add this URL in Moss → Tool Library → Manage
 /** The checks Moss's official curation repo runs (0.16/validate-lists.js), so a bad list is never published. */
 function validate(list) {
   for (const tool of list.tools) {
-    new URL(tool.icon);
+    const iconUrl = new URL(tool.icon);
+    if (!/^https?:$/.test(iconUrl.protocol) || !/\.(png|jpe?g)$/i.test(iconUrl.pathname)) {
+      throw new Error("Tool icon must be an http(s) URL to a .png or .jpg file (Moss downloads it with net.fetch)");
+    }
     const sections = [...tool.description.matchAll(/^(#{1,6})[ \t]+(.+?)[ \t]*$/gm)];
     if (sections.some((m) => m[1] !== "##")) throw new Error("Description may only use level-2 headings");
     if (sections[0]?.[2] !== "Overview") throw new Error('Description must open with "## Overview"');
