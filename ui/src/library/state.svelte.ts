@@ -1,6 +1,7 @@
 import { encodeHashToBase64, type ActionHash, type AgentPubKey } from "@holochain/client";
 
 import { sameHash } from "./actions";
+import { catchUp } from "./catchUp";
 import { friendlyError } from "./errors";
 import type { LibraryClient } from "./libraryClient";
 import { notificationFor, type LibraryNotification } from "./notifications";
@@ -16,7 +17,15 @@ export type Route =
   | { name: "loans" };
 
 export interface Notifier {
-  notify(notification: LibraryNotification, signal: LibrarySignal): void;
+  /** `about` is the book the notification concerns; `from` is who caused it. */
+  notify(notification: LibraryNotification, about?: ActionHash, from?: AgentPubKey): void;
+}
+
+function signalContext(signal: LibrarySignal): { about?: ActionHash; from?: AgentPubKey } {
+  if (signal.type === "LocalChange") return {};
+  if (signal.type === "BorrowRequested") return { about: signal.book_hash, from: signal.requester };
+  if (signal.type === "BookReturned") return { about: signal.book_hash, from: signal.borrower };
+  return { about: signal.book_hash };
 }
 
 /** App-wide reactive state. Refreshes from the zome and reacts to signals. */
@@ -29,6 +38,8 @@ export class LibraryState {
   busy = $state(false);
   error = $state<string | null>(null);
   route = $state<Route>({ name: "library" });
+  /** Set when running in Moss: put a book in the pocket for linking elsewhere. */
+  toPocket: ((bookHash: ActionHash) => Promise<void>) | undefined;
 
   constructor(
     public api: LibraryClient,
@@ -98,6 +109,32 @@ export class LibraryState {
     }
   }
 
+  /**
+   * Notify about requests and returns that arrived while we were offline.
+   * What's been notified is remembered per agent in this browser's storage.
+   */
+  async catchUp() {
+    const storageKey = `mailboox:notified:${hashKey(this.me)}`;
+    let seen = new Set<string>();
+    try {
+      seen = new Set(JSON.parse(localStorage.getItem(storageKey) ?? "[]"));
+    } catch {
+      // Storage unavailable (private window, blocked site data): we may notify twice, which is fine.
+    }
+    try {
+      const pending = await this.api.getPendingActions();
+      const result = catchUp(pending, seen, { titleOf: this.titleOf, nameOf: this.nameOf });
+      for (const item of result.items) this.notifier.notify(item.notification, item.about, item.from);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify([...result.seen]));
+      } catch {
+        // See above.
+      }
+    } catch (e) {
+      console.warn("Couldn't catch up on pending actions", e);
+    }
+  }
+
   /** "Your shelf" or "Sam's shelf". */
   shelfOf(owner: AgentPubKey): string {
     return sameHash(owner, this.me) ? "Your shelf" : `${this.nameOf(owner)}'s shelf`;
@@ -132,7 +169,10 @@ export class LibraryState {
 
   private onSignal(signal: LibrarySignal) {
     const notification = notificationFor(signal, { titleOf: this.titleOf, nameOf: this.nameOf });
-    if (notification) this.notifier.notify(notification, signal);
+    if (notification) {
+      const { about, from } = signalContext(signal);
+      this.notifier.notify(notification, about, from);
+    }
     // A remote signal usually arrives before the other person's data has reached
     // our node, so refresh a few times. Bursts of signals reset the schedule.
     this.refreshTimers.forEach(clearTimeout);

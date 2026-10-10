@@ -104,6 +104,11 @@
             {LABELS[action.kind]}
           </button>
         {/each}
+        {#if lib.toPocket}
+          <button title="Link this book from other Moss tools" onclick={() => lib.toPocket?.(bookHash)}>
+            Add to pocket
+          </button>
+        {/if}
       </div>
 
       {#if disputing && loan}

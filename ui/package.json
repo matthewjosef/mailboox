@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@holochain/client": "^0.21.0",
-    "@msgpack/msgpack": "^2.8.0"
+    "@msgpack/msgpack": "^2.8.0",
+    "@theweave/api": "0.7.0-dev.5"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",

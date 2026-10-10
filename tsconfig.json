@@ -1,0 +1,5 @@
+{
+  // Only used by the Weave CLI (via ts-node) to load weave.dev.config.ts.
+  "compilerOptions": { "module": "commonjs", "target": "es2020", "esModuleInterop": true, "skipLibCheck": true },
+  "include": ["weave.dev.config.ts"]
+}

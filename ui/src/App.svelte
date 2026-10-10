@@ -26,11 +26,16 @@
 
   onMount(async () => {
     try {
-      const { client, nameOf } = await connect();
-      const s = new LibraryState(new LibraryClient(client), nameOf, { notify: showToast });
+      const { client, nameOf, weave } = await connect();
+      // In Moss, notifications go to Moss (badges, OS notifications, linked to the book).
+      const notify = weave ? weave.notify : showToast;
+      const s = new LibraryState(new LibraryClient(client), nameOf, { notify });
+      s.toPocket = weave?.toPocket;
+      if (weave?.openBook) s.go({ name: "book", bookHash: weave.openBook });
       lib = s;
       await s.refresh();
       s.startAutoRefresh();
+      s.catchUp();
     } catch (e) {
       connectError = friendlyError(e);
     }

@@ -29,3 +29,4 @@
 .weave*
 /.nix/
 ui/dist/
+.kitsune2_bootstrap_srv
