@@ -39,6 +39,7 @@
 
 <header class="screen-head">
   <h1>{bookHash ? "Edit book" : "Add a book"}</h1>
+  {#if !bookHash}<button class="link" onclick={() => lib.go({ name: "scan" })}>Or scan it with your camera</button>{/if}
 </header>
 
 <form class="book-form" onsubmit={save}>

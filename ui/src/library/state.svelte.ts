@@ -25,7 +25,8 @@ export type Route =
   | { name: "edit"; bookHash: ActionHash }
   | { name: "inbox" }
   | { name: "loans" }
-  | { name: "details"; reason?: string };
+  | { name: "details"; reason?: string }
+  | { name: "scan" };
 
 export interface Notifier {
   /** `about` is the book the notification concerns; `from` is who caused it. */

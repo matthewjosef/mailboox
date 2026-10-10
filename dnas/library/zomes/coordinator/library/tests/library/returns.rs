@@ -114,7 +114,7 @@ async fn owner_catches_up_on_a_return_made_while_offline() {
     let _: LoanView = net.call(bob, "mark_returned", loan.loan_hash.clone()).await;
     net.conductors[alice].startup().await;
     net.conductors.exchange_peer_info().await;
-    net.sync().await;
+    net.sync_after_restart().await;
 
     let pending: PendingActions = net.call(alice, "get_pending_actions", ()).await;
     assert_eq!(pending.returns_to_confirm.len(), 1);

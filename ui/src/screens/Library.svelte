@@ -47,7 +47,8 @@
   <div class="empty">
     <p>No books here yet. Add the ones on your shelf so neighbours can borrow them.</p>
     <div class="row">
-      <button class="primary" onclick={() => lib.go({ name: "add" })}>Add a book</button>
+      <button class="primary" onclick={() => lib.go({ name: "scan" })}>Scan your shelf</button>
+      <button onclick={() => lib.go({ name: "add" })}>Add a book by hand</button>
       <button disabled={lib.busy} onclick={() => lib.run(() => lib.api.createBooksBatch(DEMO_BOOKS))}>
         Add the sample shelf
       </button>

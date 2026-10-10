@@ -49,6 +49,11 @@ impl Network {
         await_consistency(&self.cells).await.unwrap();
     }
 
+    /// For after a conductor restart, which can take a while to reconnect on slow CI machines.
+    pub async fn sync_after_restart(&self) {
+        await_consistency_s(240, &self.cells).await.unwrap();
+    }
+
     pub fn signals(&self, i: usize) -> Receiver<Signal> {
         self.conductors[i].subscribe_to_app_signals(APP_ID.to_string())
     }

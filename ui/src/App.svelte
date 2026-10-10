@@ -11,6 +11,7 @@
   import Inbox from "./screens/Inbox.svelte";
   import Library from "./screens/Library.svelte";
   import MyBooks from "./screens/MyBooks.svelte";
+  import Scan from "./scanner/Scan.svelte";
   import MyDetails from "./screens/MyDetails.svelte";
   import MyLoans from "./screens/MyLoans.svelte";
 
@@ -95,6 +96,8 @@
       <Inbox {lib} />
     {:else if lib.route.name === "loans"}
       <MyLoans {lib} />
+    {:else if lib.route.name === "scan"}
+      <Scan {lib} />
     {:else if lib.route.name === "details"}
       {#key lib.route}<MyDetails {lib} reason={lib.route.reason} />{/key}
     {/if}

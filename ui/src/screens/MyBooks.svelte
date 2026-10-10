@@ -7,7 +7,10 @@
 
 <header class="screen-head">
   <h1>My shelf</h1>
-  <button class="primary" onclick={() => lib.go({ name: "add" })}>Add a book</button>
+  <div class="row">
+    <button class="primary" onclick={() => lib.go({ name: "scan" })}>Scan books</button>
+    <button onclick={() => lib.go({ name: "add" })}>Add by hand</button>
+  </div>
 </header>
 
 {#if lib.myBooks.length === 0}
@@ -18,4 +21,5 @@
 
 <style>
   .empty { padding: 1rem; }
+  .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 </style>

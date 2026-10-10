@@ -30,3 +30,6 @@
 /.nix/
 ui/dist/
 .kitsune2_bootstrap_srv
+
+# Personal shelf photos for the scanner accuracy check (never committed)
+scanner-eval/photos/

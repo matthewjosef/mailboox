@@ -16,6 +16,20 @@ MailBoox needs **Moss 0.16 or later**, currently a pre-release: [Moss releases](
    `https://raw.githubusercontent.com/matthewjosef/mailboox/master/curation/lists/curations-0.16.json`
 3. Install **MailBoox** into a group. Each member then fills in **My details** once: a map pin (only a ~1 km area is shared) and an exact address, which is shared encrypted with the other person in a loan.
 
+## Scanning books
+
+**My shelf → Scan books** reads photos of a whole shelf or of single books with a vision model running locally in
+[Ollama](https://ollama.com), so photos never leave your computer. Titles are then matched on Open Library (with
+Google Books as a fallback), and you review the suggestions either as a list with an Add / Skip toggle per book
+and an **Add all** button, or one card at a time (← skip, → add, E edit, Backspace undo). Anything can be edited,
+including picking a different catalogue match; books already on your shelf are set aside.
+
+Setup (the app walks you through it): install Ollama, allow Moss tools with `OLLAMA_ORIGINS="applet://*"`, and
+`ollama pull qwen2.5vl:7b`.
+
+To check accuracy, put photos in `scanner-eval/photos/` (git-ignored) with a same-named `.txt` listing
+`Title — Author` per line (name shelf photos `shelf*.jpg`), then run `npm run scanner:eval`.
+
 ## Releasing
 
 See the steps at the top of [`curation/write-lists.mjs`](curation/write-lists.mjs). In short: `npm run package`, hash the
